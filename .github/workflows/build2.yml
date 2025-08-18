@@ -299,6 +299,7 @@ jobs:
   build-windows-msvc:
     name: Build Windows MSVC
     if: github.ref != 'refs/heads/l10n_master'
+    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:

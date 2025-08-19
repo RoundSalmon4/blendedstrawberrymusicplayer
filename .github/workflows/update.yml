@@ -2,7 +2,7 @@ name: Update from Upstream
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # This runs the action every hour
+    - cron: '0 0 * * *'  # This runs the action every day at midnight UTC
   workflow_dispatch:  # Allows manual triggering of the workflow
 
 jobs:
@@ -38,7 +38,7 @@ jobs:
         id: check_changes
         run: |
           cd ./repo
-          git merge upstream/master --strategy-option=theirs -- . ':!/.github/workflows' || echo "No changes to merge."
+          git merge upstream/master --strategy-option=theirs -- ':!/.github/workflows' || echo "No changes to merge."
 
       - name: Push changes if any
         if: steps.check_changes.outcome == 'success'

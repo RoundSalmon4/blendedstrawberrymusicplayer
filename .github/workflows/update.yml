@@ -22,12 +22,18 @@ jobs:
       - name: Fetch upstream changes
         run: git fetch upstream
 
+      - name: Check Git Status
+        run: git status
+
+      - name: List Remote Branches
+        run: git branch -r
+
       - name: Merge changes while excluding .github/workflows
         run: |
-          git checkout main
-          git merge upstream/main --strategy-option=theirs -- . ':!/.github/workflows/*'
+          git checkout master  # Switch to the master branch
+          git merge upstream/master --strategy-option=theirs -- . ':!/.github/workflows/*'
 
       - name: Push changes
-        run: git push origin main
+        run: git push origin master  # Push to the master branch
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -2,7 +2,7 @@ name: Update from Upstream
 
 on:
   schedule:
-    - cron: '0 * * * *'  # This runs the action every hour
+    - cron: '0 0 * * *'  # This runs the action every hour
   workflow_dispatch:  # Allows manual triggering of the workflow
 
 jobs:

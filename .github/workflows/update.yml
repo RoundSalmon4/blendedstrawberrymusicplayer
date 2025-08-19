@@ -43,8 +43,12 @@ jobs:
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
 
-      - name: Merge upstream changes
-        id: merge_changes
+      - name: Create a temporary branch for merging
+        run: |
+          cd ./repo
+          git checkout -b temp-merge
+
+      - name: Merge upstream changes into temporary branch
         run: |
           cd ./repo
           git merge upstream/master --strategy-option=theirs --allow-unrelated-histories || echo "No changes to merge."
@@ -54,10 +58,24 @@ jobs:
           cd ./repo
           git checkout HEAD -- .github/workflows
 
+      - name: Checkout master branch again
+        run: |
+          cd ./repo
+          git checkout master
+
+      - name: Merge changes from temporary branch to master
+        run: |
+          cd ./repo
+          git merge temp-merge --no-ff || echo "No changes to merge."
+
       - name: Push changes if any
-        if: steps.merge_changes.outcome == 'success'
         run: |
           cd ./repo
           git push origin master || echo "Push failed, no changes to push."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Clean up temporary branch
+        run: |
+          cd ./repo
+          git branch -d temp-merge

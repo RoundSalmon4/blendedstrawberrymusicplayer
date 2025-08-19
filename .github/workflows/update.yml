@@ -12,22 +12,24 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
         with:
-          repository: <your-username>/<your-repo>
+          repository: RoundSalmon4/test
           token: ${{ secrets.GITHUB_TOKEN }}
           path: ./repo
 
       - name: Add upstream remote
-        run: git remote add upstream <URL-of-original-repo>
+        run: git remote add upstream https://github.com/strawberrymusicplayer/strawberry || echo "Upstream remote already exists."
 
       - name: Fetch upstream changes
         run: git fetch upstream
 
-      - name: Merge changes while excluding .github/workflows
+      - name: Check for changes
+        id: check_changes
         run: |
           git checkout main
-          git merge upstream/main --strategy-option=theirs -- . ':!/.github/workflows' || echo "Merge conflict occurred, skipping push."
+          git merge upstream/main --strategy-option=theirs -- . ':!/.github/workflows' || echo "No changes to merge."
 
-      - name: Push changes
+      - name: Push changes if any
+        if: steps.check_changes.outcome == 'success'
         run: git push origin main || echo "Push failed, no changes to push."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

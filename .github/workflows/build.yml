@@ -1,11 +1,7 @@
 name: Build
 on:
   workflow_dispatch:  # Allows manual triggering of the workflow
-  push:              # Optional: keep this if you want to trigger on push
-  pull_request:
-    types: [opened, synchronize, reopened]
-  release:
-    types: [published]
+
 jobs:
 
   build-macos:

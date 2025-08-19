@@ -43,11 +43,16 @@ jobs:
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
 
-      - name: Merge upstream changes while excluding workflows
+      - name: Merge upstream changes
         id: merge_changes
         run: |
           cd ./repo
-          git merge upstream/master --strategy-option=theirs --allow-unrelated-histories -- . ':!/.github/workflows/*' || echo "No changes to merge."
+          git merge upstream/master --strategy-option=theirs --allow-unrelated-histories || echo "No changes to merge."
+
+      - name: Reset workflow files if changed
+        run: |
+          cd ./repo
+          git checkout HEAD -- .github/workflows
 
       - name: Push changes if any
         if: steps.merge_changes.outcome == 'success'

@@ -34,6 +34,12 @@ jobs:
           cd ./repo
           git checkout master
 
+      - name: Configure Git user
+        run: |
+          cd ./repo
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
       - name: Merge upstream changes
         id: merge_changes
         run: |

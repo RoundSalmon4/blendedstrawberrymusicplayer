@@ -1,0 +1,32 @@
+name: Update from Upstream
+
+on:
+  schedule:
+    - cron: '0 * * * *'  # This runs the action every hour
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+        with:
+          repository: <your-username>/<your-repo>
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: ./repo
+
+      - name: Add upstream remote
+        run: git remote add upstream <URL-of-original-repo>
+
+      - name: Fetch upstream changes
+        run: git fetch upstream
+
+      - name: Merge changes while excluding .github/workflows
+        run: |
+          git checkout main
+          git merge upstream/main --strategy-option=theirs -- . ':!/.github/workflows'
+
+      - name: Push changes
+        run: git push origin main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

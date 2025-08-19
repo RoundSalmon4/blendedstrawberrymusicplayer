@@ -2,8 +2,7 @@ name: Update from Upstream
 
 on:
   schedule:
-    - cron: '0 * * * *'  # Runs every hour
-  workflow_dispatch:  # Allows manual triggering
+    - cron: '0 * * * *'  # This runs the action every hour
 
 jobs:
   update:
@@ -12,28 +11,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
         with:
-          repository: RoundSalmon4/test
+          repository: <your-username>/<your-repo>
           token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0  # Fetch all history for all branches and tags
+          path: ./repo
 
       - name: Add upstream remote
-        run: git remote add upstream https://github.com/strawberrymusicplayer/strawberry
+        run: git remote add upstream <URL-of-original-repo>
 
       - name: Fetch upstream changes
         run: git fetch upstream
 
-      - name: Check Git Status
-        run: git status
-
-      - name: List Remote Branches
-        run: git branch -r
-
       - name: Merge changes while excluding .github/workflows
         run: |
-          git checkout master  # Switch to the master branch
-          git merge upstream/master --strategy-option=theirs -- . ':!/.github/workflows/*'
+          git checkout main
+          git merge upstream/main --strategy-option=theirs -- . ':!/.github/workflows' || echo "Merge conflict occurred, skipping push."
 
       - name: Push changes
-        run: git push origin master  # Push to the master branch
+        run: git push origin main || echo "Push failed, no changes to push."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -667,21 +667,25 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Download artifacts
-        uses: actions/download-artifact@v5
-        with:
-          path: artifacts
-
       - name: Check for existing artifacts
         id: check_artifacts
         run: |
-          if [ -z "$(find artifacts -type f)" ]; then
+          echo "Checking for existing artifacts in the 'artifacts' directory..."
+          artifact_files=$(find artifacts -type f)
+          if [ -z "$artifact_files" ]; then
             echo "No artifacts found."
             echo "artifacts_exist=false" >> $GITHUB_ENV
           else
-            echo "Artifacts found."
+            echo "Artifacts found:"
+            echo "$artifact_files"
             echo "artifacts_exist=true" >> $GITHUB_ENV
           fi
+
+      - name: Download artifacts
+        if: env.artifacts_exist == 'false'
+        uses: actions/download-artifact@v5
+        with:
+          path: artifacts
 
       - name: Add artifacts to release
         if: env.artifacts_exist == 'true'

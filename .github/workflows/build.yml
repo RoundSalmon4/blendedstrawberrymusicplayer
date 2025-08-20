@@ -661,42 +661,55 @@ jobs:
         env:
           DEBIAN_FRONTEND: noninteractive
         run: sudo apt install -y git jq gh
+
       - name: Checkout
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - name: Show release assets
-        env:
-          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
-        run: gh release view "${{github.event.release.tag_name}}" --json assets | jq -r '.assets[].name'
+
       - name: Download artifacts
         uses: actions/download-artifact@v5
         with:
           path: artifacts
-      - name: Add artifacts to release
-        env:
-          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+
+      - name: Check for existing artifacts
+        id: check_artifacts
         run: |
-          echo "Release version: ${{github.event.release.tag_name}}"
+          if [ -z "$(find artifacts -type f)" ]; then
+            echo "No artifacts found."
+            echo "artifacts_exist=false" >> $GITHUB_ENV
+          else
+            echo "Artifacts found."
+            echo "artifacts_exist=true" >> $GITHUB_ENV
+          fi
+
+      - name: Add artifacts to release
+        if: env.artifacts_exist == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Release version: ${{ github.event.release.tag_name }}"
           filenames=()
           files=()
           for i in $(find artifacts -type f); do
-            filename=$(basename $i)
-            if [[ ${filenames[@]} =~ ${filename} ]]; then
+            filename=$(basename "$i")
+            if [[ " ${filenames[@]} " =~ " ${filename} " ]]; then
               echo "Skipping duplicate file: ${filename}"
               continue
             fi
             filenames+=("${filename}")
-            existing_asset=$(gh release view "${{github.event.release.tag_name}}" --json assets | jq -r '.assets[].name' | tr -d '[:blank:]' | grep ".*/${filename}\$" 2>/dev/null || true)
-            if [ "${existing_asset}" = "" ]; then
+            existing_asset=$(gh release view "${{ github.event.release.tag_name }}" --json assets | jq -r '.assets[].name' | tr -d '[:blank:]' | grep -E "^${filename}$" || true)
+            if [ -z "${existing_asset}" ]; then
               echo "Adding file: ${filename}"
-              files+=("${i}")
+              files+=("$i")
             else
               echo "Release already has file: ${filename}"
             fi
           done
-          files_list="${files[@]}"
-          if ! [ "${files_list}" = "" ]; then
+
+          if [ ${#files[@]} -gt 0 ]; then
             echo "Adding files to GitHub release"
-            gh release upload "${{github.event.release.tag_name}}" ${files_list}
+            gh release upload "${{ github.event.release.tag_name }}" "${files[@]}"
+          else
+            echo "No new files to add to the release."
           fi

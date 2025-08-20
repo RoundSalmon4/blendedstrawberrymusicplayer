@@ -686,7 +686,7 @@ jobs:
             fi
             filenames+=("${filename}")
             existing_asset=$(gh release view "${{github.event.release.tag_name}}" --json assets | jq -r '.assets[].name' | tr -d '[:blank:]' | grep ".*/${filename}\$" 2>/dev/null || true)
-            if [ "${existing_asset}" = "" ]; then
+            if [ -z "${existing_asset}" ]; then
               echo "Adding file: ${filename}"
               files+=("${i}")
             else
@@ -694,7 +694,7 @@ jobs:
             fi
           done
           files_list="${files[@]}"
-          if ! [ -z "${files_list}" ]; then
+          if [ -n "${files_list}" ]; then
             echo "Adding files to GitHub release"
             gh release upload "${{github.event.release.tag_name}}" ${files_list}
           fi

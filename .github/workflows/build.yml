@@ -651,10 +651,6 @@ jobs:
   attach:
     name: Attach to release
     runs-on: ubuntu-latest
-    needs:
-      - build-macos
-      - build-windows-mingw
-      - build-windows-msvc
     steps:
       - name: Log Job Execution
         run: echo "Running the attach job regardless of conditions."
@@ -719,3 +715,4 @@ jobs:
           else
             echo "No new files to add to the release."
           fi
+

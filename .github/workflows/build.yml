@@ -679,8 +679,8 @@ jobs:
           filenames=()
           files=()
           for i in $(find artifacts -type f); do
-            filename=$(basename $i)
-            if [[ ${filenames[@]} =~ ${filename} ]]; then
+            filename=$(basename "$i")
+            if [[ " ${filenames[@]} " =~ " ${filename} " ]]; then
               echo "Skipping duplicate file: ${filename}"
               continue
             fi

@@ -663,38 +663,41 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - name: Show release assets
-        env:
-          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
-        run: gh release view "${{github.event.release.tag_name}}" --json assets | jq -r '.assets[].name'
       - name: Download artifacts
         uses: actions/download-artifact@v5
         with:
           path: artifacts
-      - name: Add artifacts to release
+      - name: Create and upload release
         env:
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
         run: |
-          echo "Release version: ${{github.event.release.tag_name}}"
+          echo "Preparing to create a new release"
           filenames=()
           files=()
+          version=""
+
           for i in $(find artifacts -type f); do
             filename=$(basename "$i")
+            # Extract version from filename (assuming format like StrawberrySetup-1.2.12.0.d14e91f8-msvc-x64.exe)
+            if [[ $filename =~ ([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+              version="${BASH_REMATCH[1]}"
+            fi
+
             if [[ " ${filenames[@]} " =~ " ${filename} " ]]; then
               echo "Skipping duplicate file: ${filename}"
               continue
             fi
             filenames+=("${filename}")
-            existing_asset=$(gh release view "${{github.event.release.tag_name}}" --json assets | jq -r '.assets[].name' | tr -d '[:blank:]' | grep ".*/${filename}\$" 2>/dev/null || true)
-            if [ -z "${existing_asset}" ]; then
-              echo "Adding file: ${filename}"
-              files+=("${i}")
-            else
-              echo "Release already has file: ${filename}"
-            fi
+            files+=("${i}")
           done
-          files_list="${files[@]}"
-          if [ -n "${files_list}" ]; then
-            echo "Adding files to GitHub release"
-            gh release upload "${{github.event.release.tag_name}}" ${files_list}
+
+          if [ -z "$version" ]; then
+            echo "No version found in filenames. Exiting."
+            exit 1
           fi
+
+          echo "Creating release version: $version"
+          # Create a new release
+          gh release create "$version" "${files[@]}" --title "Release $version" --notes "Release notes for version $version"
+
+          echo "Files uploaded to release $version"

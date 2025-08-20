@@ -694,7 +694,7 @@ jobs:
             fi
           done
           files_list="${files[@]}"
-          if ! [ "${files_list}" = "" ]; then
+          if ! [ -z "${files_list}" ]; then
             echo "Adding files to GitHub release"
             gh release upload "${{github.event.release.tag_name}}" ${files_list}
           fi

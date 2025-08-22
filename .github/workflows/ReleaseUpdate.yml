@@ -6,9 +6,6 @@ on:
 jobs:
   update-release-notes:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read  # Required to read the repository contents
-      releases: write  # Required to edit releases
 
     steps:
       - name: Checkout

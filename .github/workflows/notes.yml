@@ -2,6 +2,10 @@ name: Update Release Notes
 
 on:
   workflow_dispatch:  # Allows manual triggering of the workflow
+  workflow_run:
+    workflows: ["build.yml"]  # Specify the workflow to listen for
+    types:
+      - completed  # Trigger when the specified workflow completes
 
 permissions:
   contents: write  # Required to read and write repository contents

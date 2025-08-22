@@ -41,7 +41,7 @@ jobs:
               BEGIN { found=0; }
               /^Version / {
                 if (found) exit;  # Exit if we found the next version
-                if ($2 ~ version) found=1;  # Check if the current line has the version (partial match)
+                if ($2 == version) found=1;  # Check if the current line has the exact version
               }
               found { print; }  # Print lines if we are in the correct version section
             ' Changelog)

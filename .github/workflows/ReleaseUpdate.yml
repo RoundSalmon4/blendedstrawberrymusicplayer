@@ -26,11 +26,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Ensure GH_TOKEN is set for this step as well
         run: |
+          # Check if Changelog exists
+          if [ ! -f Changelog ]; then
+            echo "Changelog not found. Exiting."
+            exit 1
+          fi
+
           IFS=$'\n'  # Set the Internal Field Separator to newline
           for version in $RELEASES; do
             echo "Processing release: $version"
 
-            # Read changelog.md and extract release notes for the current version
+            # Read Changelog and extract release notes for the current version
             release_notes=$(awk -v version="$version" '
               BEGIN { found=0; }
               /^Version / {
@@ -38,7 +44,7 @@ jobs:
                 if ($2 ~ version) found=1;  # Check if the current line has the version (partial match)
               }
               found { print; }  # Print lines if we are in the correct version section
-            ' changelog.md)
+            ' Changelog)
 
             # If no release notes are found, leave release_notes blank
             if [ -z "$release_notes" ]; then

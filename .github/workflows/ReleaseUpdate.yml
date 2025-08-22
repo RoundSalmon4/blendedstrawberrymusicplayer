@@ -4,10 +4,19 @@ on:
   workflow_dispatch:  # Allows manual triggering of the workflow
 
 permissions:
-  contents: read  # Required to read the repository contents
-  issues: write  # Required to edit issues
-  pull-requests: write  # Required to edit pull requests
-  releases: write  # Required to edit releases
+  # Grant all permissions to the GITHUB_TOKEN
+  contents: write
+  issues: write
+  pull-requests: write
+  releases: write
+  deployments: write
+  statuses: write
+  checks: write
+  actions: write
+  workflows: write
+  packages: write
+  secrets: write
+  metadata: write
 
 jobs:
   update-release-notes:

@@ -7,11 +7,6 @@ jobs:
   update-release-notes:
     runs-on: ubuntu-latest
     steps:
-      - name: Install packages
-        env:
-          DEBIAN_FRONTEND: noninteractive
-        run: sudo apt-get update && sudo apt-get install -y git jq gh
-
       - name: Checkout
         uses: actions/checkout@v5
         with:

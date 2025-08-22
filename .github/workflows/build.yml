@@ -700,24 +700,7 @@ jobs:
           fi
           
           echo "Creating release version: $version"
-
-          # Read changelog.md and extract release notes for the current version
-          release_notes=$(awk -v version="$version" '
-            BEGIN { found=0; }
-            /^Version / {
-              if (found) exit;  # Exit if we found the next version
-              if ($2 ~ version) found=1;  # Check if the current line has the version (partial match)
-            }
-            found { print; }  # Print lines if we are in the correct version section
-          ' changelog.md)
-
-          # If no release notes are found, leave release_notes blank
-          if [ -z "$release_notes" ]; then
-            echo "No release notes found for version $version. Leaving release notes blank."
-            release_notes=""  # Set release_notes to an empty string
-          fi
-
-          # Create a new release with the extracted release notes
-          gh release create "$version" "${files[@]}" --title "Release $version" --notes "$release_notes"
+          # Create a new release
+          gh release create "$version" "${files[@]}" --title "Release $version" --notes "Release notes for version $version"
           
           echo "Files uploaded to release $version"

@@ -46,7 +46,7 @@ jobs:
       - name: Checkout upstream changes excluding workflows
         run: |
           cd ./repo
-          git checkout upstream/master -- . ':!/.github/workflows/*'
+          git checkout upstream/master -- . ':!/.github/workflows/*' ':!NOTICE.md'
 
       - name: Add changes to staging
         run: |

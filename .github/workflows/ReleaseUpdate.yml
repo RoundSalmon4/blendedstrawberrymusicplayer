@@ -3,6 +3,10 @@ name: Update Release Notes
 on:
   workflow_dispatch:  # Allows manual triggering of the workflow
 
+permissions:
+  contents: read  # Required to read the repository contents
+  releases: write  # Required to edit releases
+
 jobs:
   update-release-notes:
     runs-on: ubuntu-latest

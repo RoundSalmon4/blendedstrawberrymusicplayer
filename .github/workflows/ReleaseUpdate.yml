@@ -10,7 +10,7 @@ jobs:
       - name: Install packages
         env:
           DEBIAN_FRONTEND: noninteractive
-        run: sudo apt install -y git jq gh
+        run: sudo apt-get update && sudo apt-get install -y git jq gh
 
       - name: Checkout
         uses: actions/checkout@v5
@@ -19,6 +19,8 @@ jobs:
 
       - name: Get all releases
         id: get_releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Set the GitHub token for authentication
         run: |
           releases=$(gh release list --json tagName --jq '.[].tagName')
           echo "RELEASES<<EOF" >> $GITHUB_ENV
@@ -27,7 +29,7 @@ jobs:
 
       - name: Update release notes
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Ensure GH_TOKEN is set for this step as well
         run: |
           IFS=$'\n'  # Set the Internal Field Separator to newline
           for version in $RELEASES; do

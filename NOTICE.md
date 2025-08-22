@@ -4,7 +4,6 @@ This project is a modified version of the [Strawberry Music Player](https://gith
 
 ## Original Authors
 - **Jonas K.** - [GitHub Profile](https://github.com/jonask)
-- **Johan W.** - [GitHub Profile](https://github.com/johanw)
 - **Other Contributors** - See the [Contributors page](https://github.com/strawberrymusicplayer/strawberry/graphs/contributors) for a full list of contributors.
 
 ## License

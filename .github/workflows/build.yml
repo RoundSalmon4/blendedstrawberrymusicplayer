@@ -701,6 +701,6 @@ jobs:
           
           echo "Creating release version: $version"
           # Create a new release
-          gh release create "$version" "${files[@]}" --title "Release $version" --notes "Release notes for version $version"
+          gh release create "$version" "${files[@]}" --title "Blended Strawberry $version" --notes "Release notes for version $version"
           
           echo "Files uploaded to release $version"

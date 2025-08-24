@@ -1,6 +1,6 @@
 # NOTICE
 
-This project is a modified version of the [Strawberry Music Player](https://github.com/strawberrymusicplayer/strawberry).
+This project is a tailored version of the [Strawberry Music Player](https://github.com/strawberrymusicplayer/strawberry).
 
 ## Original Authors
 - **Jonas K.** - [GitHub Profile](https://github.com/jonask)

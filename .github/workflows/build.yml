@@ -679,7 +679,7 @@ jobs:
           files=()
           version=""
           
-          for i in $(find artifacts -type f); do
+          while IFS= read -r i; do
             filename=$(basename "$i")
             # Extract version from filename (assuming format like StrawberrySetup-1.2.12.0.d14e91f8-msvc-x64.exe)
             if [[ $filename =~ ([0-9]+\.[0-9]+\.[0-9]+) ]]; then
@@ -693,6 +693,14 @@ jobs:
             filenames+=("${filename}")
             files+=("${i}")
           done
+
+          if gh release view "$version" &> /dev/null; then
+              echo "Release $version already exists. Incrementing version."
+              # Increment the patch version
+              IFS='.' read -r major minor patch <<< "$version"
+              patch=$((patch + 1))
+              version="$major.$minor.$patch"
+          fi
           
           if [ -z "$version" ]; then
             echo "No version found in filenames. Exiting."

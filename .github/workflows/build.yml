@@ -675,40 +675,48 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "Preparing to create a new release"
-          filenames=()
           files=()
           version=""
-          
-          while IFS= read -r i; do
-            filename=$(basename "$i")
-            # Extract version from filename (assuming format like StrawberrySetup-1.2.12.0.d14e91f8-msvc-x64.exe)
-            if [[ $filename =~ ([0-9]+\.[0-9]+\.[0-9]+) ]]; then
-              version="${BASH_REMATCH[1]}"
-            fi
-          
-            if [[ " ${filenames[@]} " =~ " ${filename} " ]]; then
-              echo "Skipping duplicate file: ${filename}"
-              continue
-            fi
-            filenames+=("${filename}")
-            files+=("${i}")
-          done
 
-          if gh release view "$version" &> /dev/null; then
-              echo "Release $version already exists. Incrementing version."
-              # Increment the patch version
-              IFS='.' read -r major minor patch <<< "$version"
-              patch=$((patch + 1))
-              version="$major.$minor.$patch"
+          # Check if Changelog exists
+          changelog_file="Changelog"  # Adjust this to the path of your changelog file
+          if [ ! -f "$changelog_file" ]; then
+              echo "Changelog not found. Exiting."
+              exit 1
           fi
-          
+
+          # Extract the most recent version from the changelog
+          version=$(grep -oP 'Version \K[0-9]+\.[0-9]+\.[0-9]+' "$changelog_file" | head -n 1)
+
+          # Check if a version was found
           if [ -z "$version" ]; then
-            echo "No version found in filenames. Exiting."
-            exit 1
+              echo "No version found in changelog. Exiting."
+              exit 1
           fi
-          
+
+          # Read release notes for the current version
+          release_notes=$(awk -v version="$version" '
+          BEGIN { found=0; }
+          /^Version / {
+          if (found) exit;  # Exit if we found the next version
+          if ($2 == version) found=1;  # Check if the current line has the exact version
+          }
+          found { print; }  # Print lines if we are in the correct version section
+          ' "$changelog_file")
+
+          # If no release notes are found, leave release_notes blank
+          if [ -z "$release_notes" ]; then
+          echo "No release notes found for version $version. Leaving release notes blank."
+          release_notes=""  # Set release_notes to an empty string
+          fi
+
+          # Find all files in the artifacts directory
+          while IFS= read -r i; do
+          files+=("$i")
+          done < <(find artifacts -type f)
+
           echo "Creating release version: $version"
           # Create a new release
-          gh release create "$version" "${files[@]}" --title "Blended Strawberry $version" --notes "Release notes for version $version"
-          
+          gh release create "$version" "${files[@]}" --title "Blended Strawberry $version" --notes "$release_notes"
+
           echo "Files uploaded to release $version"

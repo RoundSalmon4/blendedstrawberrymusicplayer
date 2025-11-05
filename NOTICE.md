@@ -7,7 +7,7 @@ This project is a tailored version of the [Strawberry Music Player](https://gith
 - **Other Contributors** - See the [Contributors page](https://github.com/strawberrymusicplayer/strawberry/graphs/contributors) for a full list of contributors.
 
 ## License
-This project is licensed under the GNU General Public License v3.0 (GPLv3). You can view the full license text in the `LICENSE` file.
+This project is licensed under the GNU General Public License v3.0 (GPLv3). You can view the full license text in the `COPYING` file.
 
 ## Acknowledgments
 We thank the original authors and contributors for their hard work and dedication in creating the Strawberry Music Player.

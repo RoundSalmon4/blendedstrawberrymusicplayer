@@ -1,21 +1,21 @@
 /*
-* Strawberry Music Player
-* Copyright 2024, Jonas Kvinge <jonas@jkvinge.net>
-*
-* Strawberry is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation, either version 3 of the License, or
-* (at your option) any later version.
-*
-* Strawberry is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with Strawberry.  If not, see <http://www.gnu.org/licenses/>.
-*
-*/
+ * Strawberry Music Player
+ * Copyright 2024, Jonas Kvinge <jonas@jkvinge.net>
+ *
+ * Strawberry is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Strawberry is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with Strawberry.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
 
 #ifndef BACKENDSETTINGS_H
 #define BACKENDSETTINGS_H
@@ -63,6 +63,6 @@ constexpr qint64 kDefaultBufferDuration = 4000;
 constexpr double kDefaultBufferLowWatermark = 0.33;
 constexpr double kDefaultBufferHighWatermark = 0.99;
 
-}  // namespace
+}  // namespace BackendSettings
 
 #endif  // BACKENDSETTINGS_H

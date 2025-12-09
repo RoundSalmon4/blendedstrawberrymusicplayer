@@ -15,7 +15,7 @@
 
    You should have received a copy of the GNU General Public License
    along with Strawberry.  If not, see <http://www.gnu.org/licenses/>.
-*/
+ */
 
 #ifndef ANALYZERCONTAINER_H
 #define ANALYZERCONTAINER_H
@@ -101,8 +101,7 @@ void AnalyzerContainer::AddAnalyzerType() {
   group_->addAction(action);
   action->setCheckable(true);
   actions_ << action;
-  QObject::connect(action, &QAction::triggered, [this, id]() { ChangeAnalyzer(id); } );
-
+  QObject::connect(action, &QAction::triggered, [this, id]() { ChangeAnalyzer(id); });
 }
 
 #endif  // ANALYZERCONTAINER_H

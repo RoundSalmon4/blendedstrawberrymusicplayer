@@ -140,7 +140,6 @@ class CollectionBackend : public CollectionBackendInterface {
   Q_OBJECT
 
  public:
-
   Q_INVOKABLE explicit CollectionBackend(QObject *parent = nullptr);
 
   ~CollectionBackend();
@@ -331,4 +330,3 @@ class CollectionBackend : public CollectionBackendInterface {
 };
 
 #endif  // COLLECTIONBACKEND_H
-

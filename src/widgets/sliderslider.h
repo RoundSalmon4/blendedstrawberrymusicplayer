@@ -1,23 +1,23 @@
 /***************************************************************************
                        sliderslider.h
                         -------------------
-  begin                : Dec 15 2003
-  copyright            : (C) 2003 by Mark Kretschmann
-  email                : markey@web.de
-  copyright            : (C) 2005 by Gábor Lehel
-  email                : illissius@gmail.com
-  copyright            : (C) 2018-2023 by Jonas Kvinge
-  email                : jonas@jkvinge.net
- ***************************************************************************/
+   begin                : Dec 15 2003
+   copyright            : (C) 2003 by Mark Kretschmann
+   email                : markey@web.de
+   copyright            : (C) 2005 by Gábor Lehel
+   email                : illissius@gmail.com
+   copyright            : (C) 2018-2023 by Jonas Kvinge
+   email                : jonas@jkvinge.net
+***************************************************************************/
 
 /***************************************************************************
- *                                                                         *
- *   This program is free software; you can redistribute it and/or modify  *
- *   it under the terms of the GNU General Public License as published by  *
- *   the Free Software Foundation; either version 2 of the License, or     *
- *   (at your option) any later version.                                   *
- *                                                                         *
- ***************************************************************************/
+*                                                                         *
+*   This program is free software; you can redistribute it and/or modify  *
+*   it under the terms of the GNU General Public License as published by  *
+*   the Free Software Foundation; either version 2 of the License, or     *
+*   (at your option) any later version.                                   *
+*                                                                         *
+***************************************************************************/
 
 #ifndef SLIDERSLIDER_H
 #define SLIDERSLIDER_H
@@ -32,7 +32,7 @@ class SliderSlider : public QSlider {
   Q_OBJECT
 
  public:
-  explicit SliderSlider(const Qt::Orientation, QWidget*, const int max = 0);
+  explicit SliderSlider(const Qt::Orientation, QWidget *parent, const int max = 0);
 
   // WARNING non-virtual - and thus only really intended for internal use this is a major flaw in the class presently, however it suits our current needs fine
   int value() const { return adjustValue(QSlider::value()); }
@@ -45,11 +45,11 @@ class SliderSlider : public QSlider {
   void SliderReleased(const int);
 
  protected:
-  virtual void slideEvent(QMouseEvent*);
-  void mouseMoveEvent(QMouseEvent*) override;
-  void mousePressEvent(QMouseEvent*) override;
-  void mouseReleaseEvent(QMouseEvent*) override;
-  void wheelEvent(QWheelEvent*) override;
+  virtual void slideEvent(QMouseEvent *e);
+  void mouseMoveEvent(QMouseEvent *e) override;
+  void mousePressEvent(QMouseEvent *e) override;
+  void mouseReleaseEvent(QMouseEvent *e) override;
+  void wheelEvent(QWheelEvent *e) override;
 
   bool sliding_;
   bool wheeling_;

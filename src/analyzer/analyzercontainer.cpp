@@ -15,7 +15,7 @@
 
    You should have received a copy of the GNU General Public License
    along with Strawberry.  If not, see <http://www.gnu.org/licenses/>.
-*/
+ */
 
 #include "config.h"
 
@@ -61,7 +61,7 @@ constexpr int kLowFramerate = 20;
 constexpr int kMediumFramerate = 25;
 constexpr int kHighFramerate = 30;
 constexpr int kSuperHighFramerate = 60;
-} // namespace
+}  // namespace
 
 AnalyzerContainer::AnalyzerContainer(QWidget *parent)
     : QWidget(parent),

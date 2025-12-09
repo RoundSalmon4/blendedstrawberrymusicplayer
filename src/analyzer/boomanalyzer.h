@@ -20,7 +20,7 @@
    You should have received a copy of the GNU General Public License
    along with Strawberry.  If not, see <http://www.gnu.org/licenses/>.
 
-*/
+ */
 
 #ifndef BOOMANALYZER_H
 #define BOOMANALYZER_H
@@ -40,7 +40,7 @@ class BoomAnalyzer : public AnalyzerBase {
   Q_OBJECT
 
  public:
-  Q_INVOKABLE explicit BoomAnalyzer(QWidget*);
+  Q_INVOKABLE explicit BoomAnalyzer(QWidget *parent);
 
   static const char *kName;
 
@@ -70,7 +70,6 @@ class BoomAnalyzer : public AnalyzerBase {
 
   QPixmap barPixmap_;
   QPixmap canvas_;
-
 };
 
 #endif  // BOOMANALYZER_H

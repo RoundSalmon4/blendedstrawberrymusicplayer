@@ -55,7 +55,7 @@ using namespace Qt::Literals::StringLiterals;
 namespace {
 constexpr int IconSize_LargeSidebar = 40;
 constexpr int IconSize_SmallSidebar = 32;
-} // namespace
+}  // namespace
 
 FancyTabWidget::FancyTabWidget(QWidget *parent)
     : QTabWidget(parent),
@@ -91,7 +91,7 @@ void FancyTabWidget::LoadSettings(const QString &settings_group) {
 
   Settings s;
   s.beginGroup(settings_group);
-  QMultiMap <int, FancyTabData*> tabs;
+  QMultiMap<int, FancyTabData*> tabs;
   for (FancyTabData *tab : std::as_const(tabs_)) {
     int idx = s.value(u"tab_"_s + tab->name(), tab->index()).toInt();
     while (tabs.contains(idx)) { ++idx; }
@@ -99,7 +99,7 @@ void FancyTabWidget::LoadSettings(const QString &settings_group) {
   }
   s.endGroup();
 
-  for (QMultiMap <int, FancyTabData*> ::iterator it = tabs.begin(); it != tabs.end(); ++it) {
+  for (QMultiMap<int, FancyTabData*>::iterator it = tabs.begin(); it != tabs.end(); ++it) {
     (void)InsertTab(it.key(), it.value());
   }
 

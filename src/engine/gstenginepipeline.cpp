@@ -42,6 +42,7 @@
 #include <QObject>
 #include <QCoreApplication>
 #include <QtConcurrentRun>
+#include <QThreadPool>
 #include <QFuture>
 #include <QFutureWatcher>
 #include <QMutex>
@@ -97,6 +98,23 @@ constexpr int kEqBandFrequencies[] = { 60, 170, 310, 600, 1000, 3000, 6000, 1200
 #endif
 
 int GstEnginePipeline::sId = 1;
+
+QThreadPool *GstEnginePipeline::shared_state_threadpool() {
+
+  // C++11 guarantees thread-safe initialization of static local variables
+  static QThreadPool pool;
+  static const auto init = []() {
+    // Limit the number of threads to prevent resource exhaustion
+    // Use 2 threads max since state changes are typically sequential per pipeline
+    pool.setMaxThreadCount(2);
+    return true;
+  }();
+
+  Q_UNUSED(init);
+
+  return &pool;
+
+}
 
 GstEnginePipeline::GstEnginePipeline(QObject *parent)
     : QObject(parent),
@@ -1364,6 +1382,13 @@ void GstEnginePipeline::AboutToFinishCallback(GstPlayBin *playbin, gpointer self
 
   GstEnginePipeline *instance = reinterpret_cast<GstEnginePipeline*>(self);
 
+  // Ignore about-to-finish if we're in the process of tearing down the pipeline
+  // This prevents race conditions in GStreamer's decodebin3 when rapidly switching tracks
+  // See: https://gitlab.freedesktop.org/gstreamer/gstreamer/-/issues/4626
+  if (instance->finish_requested_.value()) {
+    return;
+  }
+
   {
     QMutexLocker l(&instance->mutex_url_);
     qLog(Debug) << "Stream from URL" << instance->gst_url_ << "about to finish.";
@@ -1841,7 +1866,7 @@ QFuture<GstStateChangeReturn> GstEnginePipeline::SetState(const GstState state) 
     watcher->deleteLater();
     SetStateFinishedSlot(state, state_change_return);
   });
-  QFuture<GstStateChangeReturn> future = QtConcurrent::run(&set_state_threadpool_, &gst_element_set_state, pipeline_, state);
+  QFuture<GstStateChangeReturn> future = QtConcurrent::run(shared_state_threadpool(), &gst_element_set_state, pipeline_, state);
   watcher->setFuture(future);
 
   return future;

@@ -823,6 +823,8 @@ set(SOURCES
 
   src/fileview/fileview.cpp
   src/fileview/fileviewlist.cpp
+  src/fileview/fileviewtree.cpp
+  src/fileview/fileviewtreemodel.cpp
 
   src/device/devicemanager.cpp
   src/device/devicelister.cpp
@@ -1112,6 +1114,8 @@ set(HEADERS
 
   src/fileview/fileview.h
   src/fileview/fileviewlist.h
+  src/fileview/fileviewtree.h
+  src/fileview/fileviewtreemodel.h
 
   src/device/devicemanager.h
   src/device/devicelister.h
@@ -1213,6 +1217,10 @@ set(UI
   src/device/deviceproperties.ui
   src/device/deviceviewcontainer.ui
 )
+
+if(UNIX)
+  optional_source(UNIX SOURCES src/core/unixsignalwatcher.cpp HEADERS src/core/unixsignalwatcher.h)
+endif()
 
 if(APPLE)
   optional_source(APPLE

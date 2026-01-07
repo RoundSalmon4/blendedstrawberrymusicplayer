@@ -84,8 +84,6 @@ if(MSVC)
   list(APPEND COMPILE_OPTIONS -MP -W4 -wd4702)
 else()
   list(APPEND COMPILE_OPTIONS
-    $<$<COMPILE_LANGUAGE:C>:-std=c11>
-    $<$<COMPILE_LANGUAGE:CXX>:-std=c++17>
     -Wall
     -Wextra
     -Wpedantic
@@ -255,7 +253,6 @@ find_package(KDSingleApplication-qt${QT_VERSION_MAJOR} 1.1.0 REQUIRED)
 
 if(APPLE)
   find_library(SPARKLE Sparkle)
-  #find_package(SPMediaKeyTap REQUIRED)
 endif()
 
 if(WIN32)

@@ -2,7 +2,7 @@
  * Strawberry Music Player
  * This file was part of Clementine.
  * Copyright 2012, David Sansome <me@davidsansome.com>
- * Copyright 2018-2024, Jonas Kvinge <jonas@jkvinge.net>
+ * Copyright 2018-2026, Jonas Kvinge <jonas@jkvinge.net>
  * Copyright 2023, Daniel Ostertag <daniel.ostertag@dakes.de>
  *
  * Strawberry is free software: you can redistribute it and/or modify
@@ -21,8 +21,10 @@
  */
 
 #include <QString>
+#include <QMap>
 
 #include "constants/timeconstants.h"
+#include "core/song.h"
 #include "filterparser.h"
 #include "filtertreenop.h"
 #include "filtertreeand.h"
@@ -31,8 +33,125 @@
 #include "filtertreeterm.h"
 #include "filtertreecolumnterm.h"
 #include "filterparsersearchcomparators.h"
+#include "filtercolumn.h"
 
 using namespace Qt::Literals::StringLiterals;
+
+namespace {
+
+enum class FilterOperator {
+  None,
+  Eq,
+  Ne,
+  Gt,
+  Ge,
+  Lt,
+  Le
+};
+
+const QMap<QString, FilterOperator> &GetFilterOperatorsMap() {
+
+  static const QMap<QString, FilterOperator> filter_operators_map_ = []() {
+    QMap<QString, FilterOperator> filter_operators_map;
+    filter_operators_map.insert(u"="_s, FilterOperator::Eq);
+    filter_operators_map.insert(u"=="_s, FilterOperator::Eq);
+    filter_operators_map.insert(u"!="_s, FilterOperator::Ne);
+    filter_operators_map.insert(u"<>"_s, FilterOperator::Ne);
+    filter_operators_map.insert(u">"_s, FilterOperator::Gt);
+    filter_operators_map.insert(u">="_s, FilterOperator::Ge);
+    filter_operators_map.insert(u"<"_s, FilterOperator::Lt);
+    filter_operators_map.insert(u"<="_s, FilterOperator::Le);
+    return filter_operators_map;
+  }();
+
+  return filter_operators_map_;
+
+}
+
+enum class ColumnType {
+  Unknown,
+  Text,
+  Int,
+  UInt,
+  Int64,
+  Float
+};
+
+const QMap<QString, FilterColumn> &GetFilterColumnsMap() {
+
+  static const QMap<QString, FilterColumn> filter_columns_map_ = []() {
+    QMap<QString, FilterColumn> filter_columns_map;
+    filter_columns_map.insert(u"albumartist"_s, FilterColumn::AlbumArtist);
+    filter_columns_map.insert(u"albumartistsort"_s, FilterColumn::AlbumArtistSort);
+    filter_columns_map.insert(u"artist"_s, FilterColumn::Artist);
+    filter_columns_map.insert(u"artistsort"_s, FilterColumn::ArtistSort);
+    filter_columns_map.insert(u"album"_s, FilterColumn::Album);
+    filter_columns_map.insert(u"albumsort"_s, FilterColumn::AlbumSort);
+    filter_columns_map.insert(u"title"_s, FilterColumn::Title);
+    filter_columns_map.insert(u"titlesort"_s, FilterColumn::TitleSort);
+    filter_columns_map.insert(u"composer"_s, FilterColumn::Composer);
+    filter_columns_map.insert(u"composersort"_s, FilterColumn::ComposerSort);
+    filter_columns_map.insert(u"performer"_s, FilterColumn::Performer);
+    filter_columns_map.insert(u"performersort"_s, FilterColumn::PerformerSort);
+    filter_columns_map.insert(u"grouping"_s, FilterColumn::Grouping);
+    filter_columns_map.insert(u"genre"_s, FilterColumn::Genre);
+    filter_columns_map.insert(u"comment"_s, FilterColumn::Comment);
+    filter_columns_map.insert(u"filename"_s, FilterColumn::Filename);
+    filter_columns_map.insert(u"url"_s, FilterColumn::URL);
+    filter_columns_map.insert(u"track"_s, FilterColumn::Track);
+    filter_columns_map.insert(u"year"_s, FilterColumn::Year);
+    filter_columns_map.insert(u"samplerate"_s, FilterColumn::Samplerate);
+    filter_columns_map.insert(u"bitdepth"_s, FilterColumn::Bitdepth);
+    filter_columns_map.insert(u"bitrate"_s, FilterColumn::Bitrate);
+    filter_columns_map.insert(u"playcount"_s, FilterColumn::Playcount);
+    filter_columns_map.insert(u"skipcount"_s, FilterColumn::Skipcount);
+    filter_columns_map.insert(u"length"_s, FilterColumn::Length);
+    filter_columns_map.insert(u"rating"_s, FilterColumn::Rating);
+    return filter_columns_map;
+  }();
+
+  return filter_columns_map_;
+
+}
+
+const QMap<FilterColumn, ColumnType> &GetColumnTypesMap() {
+
+  static const QMap<FilterColumn, ColumnType> column_types_map_ = []() {
+    QMap<FilterColumn, ColumnType> column_types_map;
+    column_types_map.insert(FilterColumn::AlbumArtist, ColumnType::Text);
+    column_types_map.insert(FilterColumn::AlbumArtistSort, ColumnType::Text);
+    column_types_map.insert(FilterColumn::Artist, ColumnType::Text);
+    column_types_map.insert(FilterColumn::ArtistSort, ColumnType::Text);
+    column_types_map.insert(FilterColumn::Album, ColumnType::Text);
+    column_types_map.insert(FilterColumn::AlbumSort, ColumnType::Text);
+    column_types_map.insert(FilterColumn::Title, ColumnType::Text);
+    column_types_map.insert(FilterColumn::TitleSort, ColumnType::Text);
+    column_types_map.insert(FilterColumn::Composer, ColumnType::Text);
+    column_types_map.insert(FilterColumn::ComposerSort, ColumnType::Text);
+    column_types_map.insert(FilterColumn::Performer, ColumnType::Text);
+    column_types_map.insert(FilterColumn::PerformerSort, ColumnType::Text);
+    column_types_map.insert(FilterColumn::Grouping, ColumnType::Text);
+    column_types_map.insert(FilterColumn::Genre, ColumnType::Text);
+    column_types_map.insert(FilterColumn::Comment, ColumnType::Text);
+    column_types_map.insert(FilterColumn::Filename, ColumnType::Text);
+    column_types_map.insert(FilterColumn::URL, ColumnType::Text);
+    column_types_map.insert(FilterColumn::Track, ColumnType::Int);
+    column_types_map.insert(FilterColumn::Year, ColumnType::Int);
+    column_types_map.insert(FilterColumn::Samplerate, ColumnType::Int);
+    column_types_map.insert(FilterColumn::Bitdepth, ColumnType::Int);
+    column_types_map.insert(FilterColumn::Bitrate, ColumnType::Int);
+    column_types_map.insert(FilterColumn::Playcount, ColumnType::UInt);
+    column_types_map.insert(FilterColumn::Skipcount, ColumnType::UInt);
+    column_types_map.insert(FilterColumn::Length, ColumnType::Int64);
+    column_types_map.insert(FilterColumn::Rating, ColumnType::Float);
+    return column_types_map;
+  }();
+
+  return column_types_map_;
+
+}
+
+}  // namespace
 
 FilterParser::FilterParser(const QString &filter_string) : filter_string_(filter_string), iter_{}, end_{} {}
 
@@ -119,7 +238,7 @@ bool FilterParser::checkAnd() {
 bool FilterParser::checkOr(const bool step_over) {
 
   if (!buf_.isEmpty()) {
-    if (buf_ == "OR"_L1) {
+    if (buf_.size() == 2 && buf_[0] == u'O' && buf_[1] == u'R') {
       if (step_over) {
         buf_.clear();
         advance();
@@ -141,7 +260,8 @@ bool FilterParser::checkOr(const bool step_over) {
               advance();
             }
             else {
-              buf_ += "OR"_L1;
+              buf_ += u'O';
+              buf_ += u'R';
             }
             return true;
           }
@@ -191,6 +311,8 @@ FilterTree *FilterParser::parseSearchTerm() {
   bool in_quotes = false;
   bool previous_char_operator = false;
 
+  buf_.reserve(32);
+
   for (; iter_ != end_; ++iter_) {
     if (previous_char_operator) {
       if (iter_->isSpace()) {
@@ -225,7 +347,7 @@ FilterTree *FilterParser::parseSearchTerm() {
           prefix += *iter_;
           previous_char_operator = true;
         }
-        else if (prefix != u'=' && *iter_ == u'=') {
+        else if (prefix.size() == 1 && prefix[0] != u'=' && *iter_ == u'=') {
           prefix += *iter_;
           previous_char_operator = true;
         }
@@ -252,132 +374,145 @@ FilterTree *FilterParser::createSearchTermTreeNode(const QString &column, const 
     return new FilterTreeNop;
   }
 
+  FilterColumn filter_column = FilterColumn::Unknown;
   FilterParserSearchTermComparator *cmp = nullptr;
 
   if (!column.isEmpty()) {
-    if (Song::kTextSearchColumns.contains(column, Qt::CaseInsensitive)) {
-      if (prefix == u'=' || prefix == "=="_L1) {
-        cmp = new FilterParserTextEqComparator(value);
+    filter_column = GetFilterColumnsMap().value(column, FilterColumn::Unknown);
+    const ColumnType column_type = GetColumnTypesMap().value(filter_column, ColumnType::Unknown);
+    const FilterOperator filter_operator = GetFilterOperatorsMap().value(prefix, FilterOperator::None);
+    switch (column_type) {
+      case ColumnType::Text:{
+        switch (filter_operator) {
+          case FilterOperator::Eq:
+            cmp = new FilterParserTextEqComparator(value);
+            break;
+          case FilterOperator::Ne:
+            cmp = new FilterParserTextNeComparator(value);
+            break;
+          default:
+            cmp = new FilterParserTextContainsComparator(value);
+            break;
+        }
+        break;
       }
-      else if (prefix == "!="_L1 || prefix == "<>"_L1) {
-        cmp = new FilterParserTextNeComparator(value);
+      case ColumnType::Int:{
+        bool ok = false;
+        const int number = value.toInt(&ok);
+        if (!ok) break;
+        switch (filter_operator) {
+          case FilterOperator::None:
+          case FilterOperator::Eq:
+            cmp = new FilterParserIntEqComparator(number);
+            break;
+          case FilterOperator::Ne:
+            cmp = new FilterParserIntNeComparator(number);
+            break;
+          case FilterOperator::Gt:
+            cmp = new FilterParserIntGtComparator(number);
+            break;
+          case FilterOperator::Ge:
+            cmp = new FilterParserIntGeComparator(number);
+            break;
+          case FilterOperator::Lt:
+            cmp = new FilterParserIntLtComparator(number);
+            break;
+          case FilterOperator::Le:
+            cmp = new FilterParserIntLeComparator(number);
+            break;
+        }
+        break;
       }
-      else {
-        cmp = new FilterParserTextContainsComparator(value);
+      case ColumnType::UInt:{
+        bool ok = false;
+        const uint number = value.toUInt(&ok);
+        if (!ok) break;
+        switch (filter_operator) {
+          case FilterOperator::None:
+          case FilterOperator::Eq:
+            cmp = new FilterParserUIntEqComparator(number);
+            break;
+          case FilterOperator::Ne:
+            cmp = new FilterParserUIntNeComparator(number);
+            break;
+          case FilterOperator::Gt:
+            cmp = new FilterParserUIntGtComparator(number);
+            break;
+          case FilterOperator::Ge:
+            cmp = new FilterParserUIntGeComparator(number);
+            break;
+          case FilterOperator::Lt:
+            cmp = new FilterParserUIntLtComparator(number);
+            break;
+          case FilterOperator::Le:
+            cmp = new FilterParserUIntLeComparator(number);
+            break;
+        }
+        break;
       }
-    }
-    else if (Song::kIntSearchColumns.contains(column, Qt::CaseInsensitive)) {
-      bool ok = false;
-      int number = value.toInt(&ok);
-      if (ok) {
-        if (prefix == u'=' || prefix == "=="_L1) {
-          cmp = new FilterParserIntEqComparator(number);
-        }
-        else if (prefix == "!="_L1 || prefix == "<>"_L1) {
-          cmp = new FilterParserIntNeComparator(number);
-        }
-        else if (prefix == u'>') {
-          cmp = new FilterParserIntGtComparator(number);
-        }
-        else if (prefix == ">="_L1) {
-          cmp = new FilterParserIntGeComparator(number);
-        }
-        else if (prefix == u'<') {
-          cmp = new FilterParserIntLtComparator(number);
-        }
-        else if (prefix == "<="_L1) {
-          cmp = new FilterParserIntLeComparator(number);
+      case ColumnType::Int64:{
+        qint64 number = 0;
+        if (filter_column == FilterColumn::Length) {
+          number = ParseTime(value) * kNsecPerSec;
         }
         else {
-          cmp = new FilterParserIntEqComparator(number);
+          number = value.toLongLong();
         }
-      }
-    }
-    else if (Song::kUIntSearchColumns.contains(column, Qt::CaseInsensitive)) {
-      bool ok = false;
-      uint number = value.toUInt(&ok);
-      if (ok) {
-        if (prefix == u'=' || prefix == "=="_L1) {
-          cmp = new FilterParserUIntEqComparator(number);
+        switch (filter_operator) {
+          case FilterOperator::None:
+          case FilterOperator::Eq:
+            cmp = new FilterParserInt64EqComparator(number);
+            break;
+          case FilterOperator::Ne:
+            cmp = new FilterParserInt64NeComparator(number);
+            break;
+          case FilterOperator::Gt:
+            cmp = new FilterParserInt64GtComparator(number);
+            break;
+          case FilterOperator::Ge:
+            cmp = new FilterParserInt64GeComparator(number);
+            break;
+          case FilterOperator::Lt:
+            cmp = new FilterParserInt64LtComparator(number);
+            break;
+          case FilterOperator::Le:
+            cmp = new FilterParserInt64LeComparator(number);
+            break;
         }
-        else if (prefix == "!="_L1 || prefix == "<>"_L1) {
-          cmp = new FilterParserUIntNeComparator(number);
+        break;
+      }
+      case ColumnType::Float:{
+        const float rating = ParseRating(value);
+        switch (filter_operator) {
+          case FilterOperator::None:
+          case FilterOperator::Eq:
+            cmp = new FilterParserFloatEqComparator(rating);
+            break;
+          case FilterOperator::Ne:
+            cmp = new FilterParserFloatNeComparator(rating);
+            break;
+          case FilterOperator::Gt:
+            cmp = new FilterParserFloatGtComparator(rating);
+            break;
+          case FilterOperator::Ge:
+            cmp = new FilterParserFloatGeComparator(rating);
+            break;
+          case FilterOperator::Lt:
+            cmp = new FilterParserFloatLtComparator(rating);
+            break;
+          case FilterOperator::Le:
+            cmp = new FilterParserFloatLeComparator(rating);
+            break;
         }
-        else if (prefix == u'>') {
-          cmp = new FilterParserUIntGtComparator(number);
-        }
-        else if (prefix == ">="_L1) {
-          cmp = new FilterParserUIntGeComparator(number);
-        }
-        else if (prefix == u'<') {
-          cmp = new FilterParserUIntLtComparator(number);
-        }
-        else if (prefix == "<="_L1) {
-          cmp = new FilterParserUIntLeComparator(number);
-        }
-        else {
-          cmp = new FilterParserUIntEqComparator(number);
-        }
+        break;
       }
-    }
-    else if (Song::kInt64SearchColumns.contains(column, Qt::CaseInsensitive)) {
-      qint64 number = 0;
-      if (column == "length"_L1) {
-        number = ParseTime(value) * kNsecPerSec;
-      }
-      else {
-        number = value.toLongLong();
-      }
-      if (prefix == u'=' || prefix == "=="_L1) {
-        cmp = new FilterParserInt64EqComparator(number);
-      }
-      else if (prefix == "!="_L1 || prefix == "<>"_L1) {
-        cmp = new FilterParserInt64NeComparator(number);
-      }
-      else if (prefix == u'>') {
-        cmp = new FilterParserInt64GtComparator(number);
-      }
-      else if (prefix == ">="_L1) {
-        cmp = new FilterParserInt64GeComparator(number);
-      }
-      else if (prefix == u'<') {
-        cmp = new FilterParserInt64LtComparator(number);
-      }
-      else if (prefix == "<="_L1) {
-        cmp = new FilterParserInt64LeComparator(number);
-      }
-      else {
-        cmp = new FilterParserInt64EqComparator(number);
-      }
-    }
-    else if (Song::kFloatSearchColumns.contains(column, Qt::CaseInsensitive)) {
-      const float rating = ParseRating(value);
-      if (prefix == u'=' || prefix == "=="_L1) {
-        cmp = new FilterParserFloatEqComparator(rating);
-      }
-      else if (prefix == "!="_L1 || prefix == "<>"_L1) {
-        cmp = new FilterParserFloatNeComparator(rating);
-      }
-      else if (prefix == u'>') {
-        cmp = new FilterParserFloatGtComparator(rating);
-      }
-      else if (prefix == ">="_L1) {
-        cmp = new FilterParserFloatGeComparator(rating);
-      }
-      else if (prefix == u'<') {
-        cmp = new FilterParserFloatLtComparator(rating);
-      }
-      else if (prefix == "<="_L1) {
-        cmp = new FilterParserFloatLeComparator(rating);
-      }
-      else {
-        cmp = new FilterParserFloatEqComparator(rating);
-      }
+      case ColumnType::Unknown:
+        break;
     }
   }
 
-  if (cmp) {
-    return new FilterTreeColumnTerm(column, cmp);
+  if (filter_column != FilterColumn::Unknown && cmp != nullptr) {
+    return new FilterTreeColumnTerm(filter_column, cmp);
   }
 
   return new FilterTreeTerm(new FilterParserTextContainsComparator(value));

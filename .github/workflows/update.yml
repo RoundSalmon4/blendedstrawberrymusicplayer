@@ -56,7 +56,9 @@ jobs:
       - name: Commit changes
         run: |
           cd ./repo
-          git commit -m "Update from upstream, excluding workflow files" || echo "No changes to commit."
+          # Fetch the latest upstream commit message
+          UPSTREAM_MESSAGE=$(git log --format=%B -n 1 upstream/master)
+          git commit -m "$UPSTREAM_MESSAGE" || echo "No changes to commit."
 
       - name: Push changes if any
         run: |

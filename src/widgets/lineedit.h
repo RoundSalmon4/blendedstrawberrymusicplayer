@@ -2,7 +2,7 @@
  * Strawberry Music Player
  * This file was part of Clementine.
  * Copyright 2010, David Sansome <me@davidsansome.com>
- * Copyright 2018-2021, Jonas Kvinge <jonas@jkvinge.net>
+ * Copyright 2018-2026, Jonas Kvinge <jonas@jkvinge.net>
  *
  * Strawberry is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -71,7 +71,7 @@ class LineEditInterface {
 class ExtendedEditor : public LineEditInterface {
 
  public:
-  explicit ExtendedEditor(QWidget *widget, int extra_right_padding = 0, bool draw_hint = true);
+  explicit ExtendedEditor(QWidget *widget, const int extra_right_padding = 0, const bool draw_hint = true);
   ~ExtendedEditor() override {}
 
   virtual bool is_empty() const { return value().toString().isEmpty(); }

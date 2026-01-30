@@ -2,7 +2,7 @@
  * Strawberry Music Player
  * This file was part of Clementine.
  * Copyright 2010, David Sansome <me@davidsansome.com>
- * Copyright 2018-2021, Jonas Kvinge <jonas@jkvinge.net>
+ * Copyright 2018-2026, Jonas Kvinge <jonas@jkvinge.net>
  *
  * Strawberry is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,6 +18,13 @@
  * along with Strawberry.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
+#include <cstdio>
+#include <cstring>
+
+#ifdef __GNUC__
+#  include <strings.h>
+#endif
 
 #include <QWidget>
 #include <QString>
@@ -42,6 +49,10 @@
 #include "core/iconloader.h"
 #include "lineedit.h"
 
+#ifdef _MSC_VER
+#  define strcasecmp _stricmp
+#endif
+
 using namespace Qt::Literals::StringLiterals;
 
 namespace {
@@ -49,7 +60,7 @@ constexpr int kClearIconSize = 16;
 constexpr int kResetIconSize = 16;
 }  // namespace
 
-ExtendedEditor::ExtendedEditor(QWidget *widget, int extra_right_padding, bool draw_hint)
+ExtendedEditor::ExtendedEditor(QWidget *widget, const int extra_right_padding, const bool draw_hint)
     : LineEditInterface(widget),
       has_clear_button_(true),
       clear_button_(new QToolButton(widget)),
@@ -77,18 +88,8 @@ ExtendedEditor::ExtendedEditor(QWidget *widget, int extra_right_padding, bool dr
   reset_button_->setFocusPolicy(Qt::NoFocus);
   reset_button_->hide();
 
-  if (LineEdit *lineedit = qobject_cast<LineEdit*>(widget)) {
-    QObject::connect(clear_button_, &QToolButton::clicked, lineedit, &LineEdit::set_focus);
-    QObject::connect(clear_button_, &QToolButton::clicked, lineedit, &LineEdit::clear);
-  }
-  else if (TextEdit *textedit = qobject_cast<TextEdit*>(widget)) {
-    QObject::connect(clear_button_, &QToolButton::clicked, textedit, &TextEdit::set_focus);
-    QObject::connect(clear_button_, &QToolButton::clicked, textedit, &TextEdit::clear);
-  }
-  else if (SpinBox *spinbox = qobject_cast<SpinBox*>(widget)) {
-    QObject::connect(clear_button_, &QToolButton::clicked, spinbox, &SpinBox::set_focus);
-    QObject::connect(clear_button_, &QToolButton::clicked, spinbox, &SpinBox::clear);
-  }
+  QObject::connect(clear_button_, &QToolButton::clicked, widget, [this]() { set_focus(); });
+  QObject::connect(clear_button_, &QToolButton::clicked, widget, [this]() { clear(); });
 
   UpdateButtonGeometry();
 
@@ -121,12 +122,12 @@ void ExtendedEditor::UpdateButtonGeometry() {
   const int right = frame_width + 1 + (has_reset_button() ? reset_button_->sizeHint().width() : 0);
   const char *const class_name = widget_->metaObject()->className();
 
-  if (strcmp(class_name, "LineEdit") == 0) {
+  if (strcasecmp(class_name, "QLineEdit") == 0 || strcasecmp(class_name, "LineEdit") == 0) {
     // Seems Qt inverts left/right padding for QLineEdit if layout direction RTL
     const bool rtl = QGuiApplication::isRightToLeft();
     widget_->setStyleSheet(QStringLiteral("QLineEdit { padding-left: %1px; padding-right: %2px; }").arg(rtl ? right : left).arg(rtl ? left : right));
   }
-  else if (strcmp(class_name, "TextEdit") == 0) {
+  else if (strcasecmp(class_name, "QPlainTextEdit") == 0 || strcasecmp(class_name, "TextEdit") == 0) {
     // But not for QPlainTextEdit
     widget_->setStyleSheet(QStringLiteral("QPlainTextEdit { padding-left: %1px; padding-right: %2px; }").arg(left).arg(right));
   }

@@ -1,221 +1,4 @@
-name: Build test
-on:
-  workflow_dispatch:  # Allows manual triggering of the workflow
-
-permissions:
-  contents: write  # Allows writing to the repository contents, including creating releases
-
-jobs:
-
-  build-macos:
-    name: Build macOS
-    if: github.ref != 'refs/heads/l10n_master'
-
-    strategy:
-      fail-fast: false
-      matrix:
-        runner: [ 'macos-15' ]
-        buildtype: [ 'release' ]
-
-    runs-on: ${{ matrix.runner }}
-
-    steps:
-
-      - name: Set MACOSX_DEPLOYMENT_TARGET
-        run: |
-          for i in 12 13 14 15; do
-            if [ -d "/Library/Developer/CommandLineTools/SDKs/MacOSX${i}.sdk" ]; then
-              echo "Using macOS SDK ${i}"
-              echo "MACOSX_DEPLOYMENT_TARGET=${i}.0" >> $GITHUB_ENV
-              break
-            fi
-          done
-
-      - name: Verify MACOSX_DEPLOYMENT_TARGET
-        run: |
-          test "${MACOSX_DEPLOYMENT_TARGET}" = "" && false || echo "MACOSX_DEPLOYMENT_TARGET: ${MACOSX_DEPLOYMENT_TARGET}"
-
-      - name: Set arch
-        shell: bash
-        run: echo "arch=$(uname -m)" >> $GITHUB_ENV
-
-      - name: Set buildtype
-        run: echo "buildtype=$(echo ${{matrix.buildtype}} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
-
-      - name: Set cmake buildtype
-        run: echo "cmake_buildtype=$(echo ${{env.buildtype}} | awk '{print toupper(substr($0,0,1))tolower(substr($0,2))}')" >> $GITHUB_ENV
-
-      - name: Uninstall homebrew
-        run: |
-          curl -sfLO https://raw.githubusercontent.com/Homebrew/install/master/uninstall.sh
-          chmod +x ./uninstall.sh
-          sudo ./uninstall.sh --force
-          rm -f uninstall.sh
-
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          submodules: recursive
-
-      - name: Download macOS dependencies
-        run: curl -f -O -L https://github.com/strawberrymusicplayer/strawberry-macos-dependencies/releases/latest/download/strawberry-macos-${{env.arch}}-${{env.buildtype}}.tar.xz
-
-      - name: Extract macOS dependencies
-        run: sudo tar -C / -xf strawberry-macos-${{env.arch}}-${{env.buildtype}}.tar.xz
-
-      - name: Set prefix path
-        run: echo "prefix_path=/opt/strawberry_macos_${{env.arch}}_${{env.buildtype}}" >> $GITHUB_ENV
-
-      - name: Update PATH
-        run: echo "${{env.prefix_path}}/bin" >> $GITHUB_PATH
-
-      - name: Create Build Environment
-        run: cmake -E make_directory build
-
-      - name: Configure CMake
-        env:
-          PKG_CONFIG_PATH: ${{env.prefix_path}}/lib/pkgconfig
-          LDFLAGS: -L${{env.prefix_path}}/lib -Wl,-rpath,${{env.prefix_path}}/lib
-        run: >
-          cmake
-          --log-level="DEBUG"
-          -S .
-          -B build
-          -DCMAKE_BUILD_TYPE="${{env.cmake_buildtype}}"
-          -DCMAKE_PREFIX_PATH="${{env.prefix_path}}/lib/cmake"
-          -DBUILD_WERROR=ON
-          -DUSE_BUNDLE=ON
-          -DICU_ROOT="${{env.prefix_path}}"
-          -DARCH="${{env.arch}}"
-          -DENABLE_SPOTIFY=$(test -f "${{env.prefix_path}}/lib/gstreamer-1.0/libgstspotify.dylib" && echo "ON" || echo "OFF")
-          -DENABLE_SPARKLE=ON
-          -DENABLE_QTSPARKLE=OFF
-
-      - name: Build
-        run: cmake --build build --config Release --parallel 4
-
-      - name: Install
-        working-directory: build
-        run: make install
-
-      - name: Deploy
-        env:
-          GIO_EXTRA_MODULES: ${{env.prefix_path}}/lib/gio/modules
-          GST_PLUGIN_SCANNER: ${{env.prefix_path}}/libexec/gstreamer-1.0/gst-plugin-scanner
-          GST_PLUGIN_PATH: ${{env.prefix_path}}/lib/gstreamer-1.0
-          LIBSOUP_LIBRARY_PATH: ${{env.prefix_path}}/lib/libsoup-3.0.0.dylib
-        working-directory: build
-        run: make deploy
-        
-      - name: Manually Codesign
-        if: github.repository == 'strawberrymusicplayer/strawberry' && github.event.pull_request.head.repo.fork == false
-        working-directory: build
-        run: codesign -s 383J84DVB6 -f strawberry.app/Contents/Frameworks/png.framework/png strawberry.app
-        
-      - name: Deploy check
-        working-directory: build
-        run: make deploycheck
-
-      - name: Create DMG
-        working-directory: build
-        run: make dmg
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v6
-        with:
-          name: macos-${{matrix.runner}}-${{matrix.buildtype}}
-          path: |
-            build/*.dmg
-
-
-  build-windows-mingw:
-    name: Build Windows MinGW
-    if: github.ref != 'refs/heads/l10n_master'
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        arch: [ 'i686', 'x86_64' ]
-        buildtype: [ 'debug', 'release' ]
-    container:
-      image: jonaski/strawberry-mxe-${{matrix.arch}}-${{matrix.buildtype}}
-    steps:
-
-      - name: Set cmake buildtype
-        shell: bash
-        run: echo "cmake_buildtype=$(echo ${{matrix.buildtype}} | sed 's/.*/\u&/')" >> $GITHUB_ENV
-
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          submodules: recursive
-
-      - name: Add safe git directory
-        run: git config --global --add safe.directory ${GITHUB_WORKSPACE}
-
-      - name: Create Build Environment
-        run: cmake -E make_directory build
-
-      - name: Link MXE directory
-        run: ln -s /strawberry-mxe ~/mxe-shared
-
-      - name: Run CMake
-        env:
-          PKG_CONFIG_PATH: /strawberry-mxe/usr/${{matrix.arch}}-w64-mingw32.shared/lib/pkgconfig
-        run: >
-          cmake
-          -S .
-          -B build
-          -DCMAKE_TOOLCHAIN_FILE="../cmake/Toolchain-${{matrix.arch}}-w64-mingw32-shared.cmake"
-          -DCMAKE_BUILD_TYPE="${{env.cmake_buildtype}}"
-          -DCMAKE_PREFIX_PATH="/strawberry-mxe/usr/${{matrix.arch}}-w64-mingw32.shared/qt6"
-          -DBUILD_WERROR=ON
-          -DARCH="${{matrix.arch}}"
-          -DENABLE_WIN32_CONSOLE=$(test "${{matrix.buildtype}}" = "debug" && echo "ON" || echo "OFF")
-          -DENABLE_GIO=OFF
-          -DENABLE_AUDIOCD=OFF
-          -DENABLE_MTP=OFF
-          -DENABLE_GPOD=OFF
-          -DENABLE_SPOTIFY=OFF
-
-      - name: Run Make
-        run: cmake --build build --config "${{env.cmake_buildtype}}" --parallel $(nproc)
-
-      - name: Create directories
-        working-directory: build
-        run: mkdir -p gio-modules platforms sqldrivers tls imageformats styles gstreamer-plugins nsisplugins
-
-      - name: Copy GIO modules
-        working-directory: build
-        run: cp /strawberry-mxe/usr/${{matrix.arch}}-w64-mingw32.shared/lib/gio/modules/{libgiognutls.dll,libgioopenssl.dll} ${GITHUB_WORKSPACE}/build/gio-modules/
-
-      - name: Copy Qt platform plugins
-        working-directory: build
-        run: cp /strawberry-mxe/usr/${{matrix.arch}}-w64-mingw32.shared/qt6/plugins/platforms/qwindows.dll ${GITHUB_WORKSPACE}/build/platforms/
-
-      - name: Copy Qt styles
-        working-directory: build
-        run: cp /strawberry-mxe/usr/${{matrix.arch}}-w64-mingw32.shared/qt6/plugins/styles/qmodernwindowsstyle.dll ${GITHUB_WORKSPACE}/build/styles/
-
-      - name: Copy Qt TLS plugins
-        working-directory: build
-        run: cp /strawberry-mxe/usr/${{matrix.arch}}-w64-mingw32.shared/qt6/plugins/tls/{qschannelbackend.dll,qopensslbackend.dll} ${GITHUB_WORKSPACE}/build/tls/
-
-      - name: Copy Qt SQL drivers
-        working-directory: build
-        run: cp /strawberry-mxe/usr/${{matrix.arch}}-w64-mingw32.shared/qt6/plugins/sqldrivers/qsqlite.dll ${GITHUB_WORKSPACE}/build/sqldrivers/
-
-      - name: Copy Qt imageformats
-        working-directory: build
-        run: cp /strawberry-mxe/usr/${{matrix.arch}}-w64-mingw32.shared/qt6/plugins/imageformats/{qgif.dll,qico.dll,qjpeg.dll} ${GITHUB_WORKSPACE}/build/imageformats/
-
-      - name: Copy gstreamer plugins
-        working-directory: build
-        run: cp /strawberry-mxe/usr/${{matrix.arch}}-w64-mingw32.shared/bin/gstreamer-1.0/*.dll ${GITHUB_WORKSPACE}/build/gstreamer-plugins/
-
-      - name: Copy extra binaries
+binaries
         working-directory: build
         run: cp /strawberry-mxe/usr/${{matrix.arch}}-w64-mingw32.shared/bin/{sqlite3.exe,gst-launch-1.0.exe,gst-play-1.0.exe,gst-discoverer-1.0.exe,libsoup-3.0-0.dll,libnghttp2.dll} .
 
@@ -299,48 +82,46 @@ jobs:
           path: |
             build/StrawberrySetup*.exe
 
-
   build-windows-msvc:
     name: Build Windows MSVC
     if: github.ref != 'refs/heads/l10n_master'
     strategy:
       fail-fast: false
       matrix:
-       include:
-         - name: "x86_64 debug"
-           runner: windows-2022
-           arch: x86_64
-           buildtype: debug
+        include:
+          - name: "x86_64 debug"
+            runner: windows-2022
+            arch: x86_64
+            buildtype: debug
 
-         - name: "x86_64 release"
-           runner: windows-2022
-           arch: x86_64
-           buildtype: release
+          - name: "x86_64 release"
+            runner: windows-2022
+            arch: x86_64
+            buildtype: release
 
-         - name: "x86 debug"
-           runner: windows-2022
-           arch: x86
-           buildtype: debug
+          - name: "x86 debug"
+            runner: windows-2022
+            arch: x86
+            buildtype: debug
 
-         - name: "x86 release"
-           runner: windows-2022
-           arch: x86
-           buildtype: release
+          - name: "x86 release"
+            runner: windows-2022
+            arch: x86
+            buildtype: release
 
-         - name: "arm64 debug"
-           runner: windows-11-arm
-           arch: arm64
-           buildtype: debug
+          - name: "arm64 debug"
+            runner: windows-11-arm
+            arch: arm64
+            buildtype: debug
 
-         - name: "arm64 release"
-           runner: windows-11-arm
-           arch: arm64
-           buildtype: release
+          - name: "arm64 release"
+            runner: windows-11-arm
+            arch: arm64
+            buildtype: release
 
     runs-on: ${{matrix.runner}}
 
     steps:
-
       - name: Set prefix path
         shell: bash
         run: |
@@ -665,54 +446,63 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v7
         with:
-          path: artifacts
+        path: artifacts
       - name: Create and upload release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          echo "Preparing to create a new release"
-          files=()
-          version=""
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  run: |
+    echo "Preparing to create a new release"
+    files=()
+    version=""
 
-          # Check if Changelog exists
-          changelog_file="Changelog"  # Adjust this to the path of your changelog file
-          if [ ! -f "$changelog_file" ]; then
-              echo "Changelog not found. Exiting."
-              exit 1
-          fi
+    # Check if Changelog exists
+    changelog_file="Changelog"  # Adjust this to the path of your changelog file
+    if [ ! -f "$changelog_file" ]; then
+      echo "Changelog not found. Exiting."
+      exit 1
+    fi
 
-          # Extract the most recent version from the changelog
-          version=$(grep -oP 'Version \K[0-9]+\.[0-9]+\.[0-9]+' "$changelog_file" | head -n 1)
+    # Extract the most recent version from the changelog
+    version=$(grep -oP 'Version \K[0-9]+\.[0-9]+\.[0-9]+' "$changelog_file" | head -n 1)
 
-          # Check if a version was found
-          if [ -z "$version" ]; then
-              echo "No version found in changelog. Exiting."
-              exit 1
-          fi
+    # Check if a version was found
+    if [ -z "$version" ]; then
+      echo "No version found in changelog. Exiting."
+      exit 1
+    fi
 
-          # Read release notes for the current version
-          release_notes=$(awk -v version="$version" '
-          BEGIN { found=0; }
-          /^Version / {
-          if (found) exit;  # Exit if we found the next version
-          if ($2 == version) found=1;  # Check if the current line has the exact version
-          }
-          found { print; }  # Print lines if we are in the correct version section
-          ' "$changelog_file")
+    # Read release notes for the current version
+    release_notes=$(awk -v version="$version" '
+    BEGIN { found=0; }
+    /^Version / {
+      if (found) exit;  # Exit if we found the next version
+      if ($2 == version) found=1;  # Check if the current line has the exact version
+    }
+    found { print; }  # Print lines if we are in the correct version section
+    ' "$changelog_file")
 
-          # If no release notes are found, leave release_notes blank
-          if [ -z "$release_notes" ]; then
-          echo "No release notes found for version $version. Leaving release notes blank."
-          release_notes=""  # Set release_notes to an empty string
-          fi
+    # Handle release notes
+    if [ -z "$release_notes" ]; then
+      echo "No release notes found for version $version. Leaving release notes blank."
+      release_notes="Changes:"  # Set to "Changes:" if empty
+    else
+      # Trim leading whitespace from release_notes
+      release_notes=$(echo "$release_notes" | sed 's/^[ \t]*//')
+      
+      # Check if the release notes start with expected headers
+      if ! echo "$release_notes" | grep -qE '^(Bugfixes:|Enhancements/Other:|Changes:)' ; then
+        release_notes="Changes:\n$release_notes"
+      fi
+    fi
 
-          # Find all files in the artifacts directory
-          while IFS= read -r i; do
-          files+=("$i")
-          done < <(find artifacts -type f)
+    # Find all files in the artifacts directory
+    while IFS= read -r i; do
+      files+=("$i")
+    done < <(find artifacts -type f)
 
-          echo "Creating release version: $version"
-          # Create a new release
-          gh release create "$version" "${files[@]}" --title "Blended Strawberry $version" --notes "$release_notes"
+    echo "Creating release version: $version"
 
-          echo "Files uploaded to release $version"
+    # Create a new release
+    gh release create "$version" "${files[@]}" --title "Blended Strawberry $version" --notes "$release_notes"
+
+    echo "Files uploaded to release $version"

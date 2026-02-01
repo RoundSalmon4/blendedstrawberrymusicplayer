@@ -394,7 +394,9 @@ jobs:
 
       - name: Copy bin files
         shell: bash
-        run: cp /c/strawberry/c/bin/{patch.exe,strip.exe,strings.exe,objdump.exe} ${{env.prefix_path_unix}}/bin
+        run: |
+          cp /c/mingw64/bin/{strip.exe,strings.exe,objdump.exe} ${{env.prefix_path_unix}}/bin
+          cp /c/strawberry/c/bin/patch.exe ${{env.prefix_path_unix}}/bin
 
       - name: Delete conflicting files
         shell: bash

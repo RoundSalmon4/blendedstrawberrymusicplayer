@@ -702,10 +702,10 @@ jobs:
           found { print; }  # Print lines if we are in the correct version section
           ' "$changelog_file")
 
-          # If no release notes are found, leave release_notes blank
+          # If no release notes are found, set a default message
           if [ -z "$release_notes" ]; then
-          echo "No release notes found for version $version. Leaving release notes blank."
-          release_notes=""  # Set release_notes to an empty string
+              echo "No release notes found for version $version. Adding default message."
+              release_notes="Changes:\n"  # Set release_notes to include "Changes:"
           fi
 
           # Find all files in the artifacts directory

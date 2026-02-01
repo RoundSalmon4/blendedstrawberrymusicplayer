@@ -131,7 +131,7 @@ jobs:
 
   build-windows-mingw:
     name: Build Windows MinGW
-    if: github.ref != 'refs/heads/l10n_master'
+    if: github.repository != 'strawberrymusicplayer/strawberry-private' && github.ref != 'refs/heads/l10n_master'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -302,7 +302,7 @@ jobs:
 
   build-windows-msvc:
     name: Build Windows MSVC
-    if: github.ref != 'refs/heads/l10n_master'
+    if: github.repository != 'strawberrymusicplayer/strawberry-private' && github.ref != 'refs/heads/l10n_master'
     strategy:
       fail-fast: false
       matrix:

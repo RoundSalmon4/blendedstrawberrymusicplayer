@@ -16,8 +16,8 @@ jobs:
 
       - name: Configure Git User
         run: |
-          git config --global user.email "your-email@example.com"
-          git config --global user.name "Your Name"
+          git config --global user.email "codebergsync.nzvel@simplelogin.com"
+          git config --global user.name "RounSalmon4"
 
       - name: Push to Codeberg
         env:

@@ -17,4 +17,4 @@ jobs:
           CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
         run: |
           git remote add codeberg https://codeberg.org/unwanted9855/blended-strawberry.git
-          git push codeberg main
+          git push codeberg master

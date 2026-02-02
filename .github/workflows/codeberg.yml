@@ -18,5 +18,5 @@ jobs:
         run: |
           git remote add codeberg https://$CODEBERG_TOKEN@codeberg.org/unwanted9855/blended-strawberry.git
           git fetch codeberg
-          git merge codeberg/master || true # Allow the job to continue even if there are no mergeable changes
+          git merge codeberg/master --allow-unrelated-histories || true  # Allow merging unrelated histories
           git push codeberg master

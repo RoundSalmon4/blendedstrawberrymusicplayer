@@ -12,11 +12,16 @@ jobs:
       - name: Checkout the repository
         uses: actions/checkout@v2
 
+      - name: Configure Git User
+        run: |
+          git config --global user.email "your-email@example.com"
+          git config --global user.name "Your Name"
+
       - name: Push to Codeberg
         env:
           CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
         run: |
           git remote add codeberg https://$CODEBERG_TOKEN@codeberg.org/unwanted9855/blended-strawberry.git
           git fetch codeberg
-          git merge codeberg/master --allow-unrelated-histories || true  # Allow merging unrelated histories
+          git merge codeberg/master --allow-unrelated-histories || true
           git push codeberg master

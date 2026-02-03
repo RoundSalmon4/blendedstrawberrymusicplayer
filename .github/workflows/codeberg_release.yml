@@ -1,7 +1,7 @@
 name: Sync Releases to Codeberg
 
 on:
-  workflow_dispatch:  # Only run on manual trigger
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -17,17 +17,17 @@ jobs:
         uses: actions/checkout@v2
         with:
           fetch-depth: 0
-          lfs: false  # Ensure that Git LFS is completely disabled
+          lfs: false  # Disable Git LFS
 
       - name: Set up Codeberg Remote
         run: |
-          git remote remove origin  # Remove the default GitHub remote
-          git remote add origin https://codeberg.org/unwanted9855/blended-strawberry  # Add Codeberg remote
+          git remote remove origin
+          git remote add origin https://codeberg.org/unwanted9855/blended-strawberry
 
       - name: Clean previous downloads and uncommitted changes
         run: |
           echo "Cleaning up previous downloads and uncommitted changes..."
-          rm -f *.dmg *.exe  # Remove previous downloads
+          rm -f *.dmg *.exe
           git reset --hard HEAD  # Reset to the last committed state
 
       - name: Get Latest Release Info
@@ -41,8 +41,6 @@ jobs:
           fi
           echo "Latest release tag: $tag_name"
           echo "tag_name=$tag_name" >> $GITHUB_ENV
-          
-          # Create assets.txt with both name and direct download URL
           echo "$latest_release" | jq -r '.assets[] | "\(.name) \(.browser_download_url)"' > assets.txt
 
       - name: Create New Branch on Codeberg
@@ -51,7 +49,7 @@ jobs:
           branch_name="upload-assets-${{ github.run_id }}"
           echo "Creating new branch: $branch_name"
           git checkout -b "$branch_name"
-          echo "branch_name=$branch_name" >> $GITHUB_ENV  # Save branch name to environment variable for later use.
+          echo "branch_name=$branch_name" >> $GITHUB_ENV
 
       - name: Check if Tag Exists on Codeberg
         id: check_tag
@@ -68,8 +66,8 @@ jobs:
       - name: Download and Upload Assets
         run: |
           while IFS= read -r line; do
-            asset_name=$(echo "$line" | awk '{print $1}')  # Grab the filename
-            asset_url=$(echo "$line" | awk '{print $2}')   # Grab the direct download URL
+            asset_name=$(echo "$line" | awk '{print $1}')
+            asset_url=$(echo "$line" | awk '{print $2}')
             
             if [ -z "$asset_url" ]; then
               echo "Empty URL, skipping."
@@ -80,9 +78,8 @@ jobs:
             if curl -L -O "$asset_url"; then
               echo "$asset_name downloaded successfully."
 
-              # Verify downloaded file's existence
               for i in {1..10}; do
-                sleep 1  # Wait before checking
+                sleep 1
                 if [[ -f "$asset_name" ]]; then
                   break
                 fi
@@ -94,27 +91,21 @@ jobs:
                 exit 1
               fi
 
-              # Get file size for upload check
-              file_size=$(stat -c%s "$asset_name")
-              echo "File size of $asset_name: $file_size bytes"
+              echo "File size of $asset_name: $(stat -c%s "$asset_name") bytes"
 
-              # Check if release exists on Codeberg for the current tag
               release=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${{ env.tag_name }}")
               if [[ "$release" == *"Not Found"* ]]; then
-                # Create a new release if it does not exist
                 echo "Creating release for tag ${{ env.tag_name }}."
                 release_data="{\"tag_name\":\"${{ env.tag_name }}\",\"name\":\"Release ${{ env.tag_name }}\",\"body\":\"Release for tag ${{ env.tag_name }}\"}"
                 release_response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$release_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
 
-                if [[ "$release_response" == *"\"id\":"* ]]; then
-                  echo "Release created successfully. Response: $release_response"
-                else
-                  echo "Failed to create release. Exiting. Response: $release_response"
+                if [[ "$release_response" != *"\"id\":"* ]]; then
+                  echo "Failed to create release. Exiting."
                   exit 1
                 fi
+                echo "Release created successfully."
               fi
 
-              # Upload the asset to the release
               echo "Uploading asset $asset_name to release for tag ${{ env.tag_name }}."
               upload_url="https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/assets?name=$asset_name"
               
@@ -129,9 +120,8 @@ jobs:
               exit 1
             fi
 
-            # Pause briefly before the next iteration
             sleep 2
-          done < assets.txt  # Read URLs from the generated file
+          done < assets.txt  
 
       - name: Configure Git Identity
         run: |
@@ -146,7 +136,7 @@ jobs:
       - name: Merge Branch with Master on Codeberg
         run: |
           git checkout master
-          git pull origin master  # Ensure local master is up to date
+          git pull origin master
 
           echo "Merging branch: ${{ env.branch_name }}"
           if ! git merge "${{ env.branch_name }}"; then
@@ -155,4 +145,4 @@ jobs:
           fi
 
           echo "Merged ${{ env.branch_name }} into master successfully."
-          git push origin master  # Push to Codeberg
+          git push origin master

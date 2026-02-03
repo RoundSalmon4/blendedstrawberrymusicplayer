@@ -1,10 +1,10 @@
-name: Sync All Older Releases to Codeberg
+name: Sync Releases to Codeberg
 
 on:
   workflow_dispatch:  # Trigger manually
 
 permissions:
-  contents: write  # Allow action to write to the repository
+  contents: write  # Allow action to write to repository
   issues: write
   pull-requests: write
   deployments: write
@@ -26,77 +26,40 @@ jobs:
       - name: Get All Releases
         id: get_releases
         run: |
-          all_releases=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases")
-          echo "$all_releases" | jq -r '.[] | "\(.tag_name) \(.id)"' > releases.txt
-          latest_release_tag=$(echo "$all_releases" | jq -r '.[0].tag_name')  # Get the latest release tag
+          # Fetch all releases
+          releases=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases")
+          
+          # Check if there are enough releases
+          total_releases=$(echo "$releases" | jq '. | length')
+          if [[ $total_releases -lt 2 ]]; then
+            echo "Not enough releases found to process."
+            exit 1
+          fi
+          
+          # Store the releases in a format suitable for iteration
+          echo "$releases" > releases.json
+          echo "total_releases=$total_releases" >> $GITHUB_ENV
 
-      - name: Upload Assets for All Old Releases
+      - name: Upload Assets for Each Release
         run: |
-          while IFS= read -r line; do
-            tag_name=$(echo "$line" | awk '{print $1}')
-            release_id=$(echo "$line" | awk '{print $2}')
+          # Get total number of releases
+          total_releases=${{ env.total_releases }}
+          for (( i=1; i<total_releases; i++ )); do
+            release=$(jq ".[$i]" releases.json)  # Skip the latest release (index 0)
+            tag_name=$(echo "$release" | jq -r '.tag_name // empty')
 
-            # Skip the latest release
-            if [[ "$tag_name" == "$latest_release_tag" ]]; then
-              echo "Skipping the latest release: $tag_name"
+            if [ -z "$tag_name" ]; then
+              echo "No valid tag name found for release index $i."
               continue
             fi
+            
+            echo "Processing release tag: $tag_name"
+            echo "$release" | jq -r '.assets[] | "\(.name) \(.browser_download_url)"' > assets.txt
 
-            echo "Processing release with tag $tag_name and ID $release_id."
-
-            # Check if the release exists on Codeberg
-            release=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/$tag_name")
-
-            if [[ "$release" == *"Not Found"* ]]; then
-              echo "Creating new release for tag $tag_name."
-              release_data="{\"tag_name\":\"$tag_name\",\"name\":\"Release $tag_name\",\"body\":\"Release for tag $tag_name\"}"
-              release_response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$release_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
-              release_id=$(echo "$release_response" | jq -r '.id')  # Extract release ID
-            else
-              echo "Release for tag $tag_name found."
-              release_id=$(echo "$release" | jq -r '.id')  # Extract release ID
-            fi
-
-            # Check for existing assets for the current release
-            echo "Checking for existing assets for release tag $tag_name."
-            existing_assets=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/$release_id/assets")
-            existing_asset_names=$(echo "$existing_assets" | jq -r '.[].name // empty')
-
-            if [ -z "$existing_asset_names" ]; then
-              echo "No existing assets found for release tag $tag_name."
-            else
-              echo "Existing assets: $existing_asset_names"
-            fi
-
-            # Get the assets for the current release from GitHub
-            echo "Downloading assets for release $tag_name."
-            assets=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/$release_id/assets")
-
-            # Handle non-array responses
-            if [[ $(echo "$assets" | jq 'type') != '"array"' ]]; then
-              echo "Error: Expected an array but got $(echo "$assets" | jq 'type'). Response: $assets"
-              continue  # Skip this release and move to the next
-            fi
-
-            asset_count=$(echo "$assets" | jq '. | length')
-
-            if [[ "$asset_count" -eq 0 ]]; then
-              echo "No assets found for release tag $tag_name."
-              continue
-            fi
-
-            echo "$assets" | jq -r '.[] | "\(.name) \(.browser_download_url)"' > assets.txt
-
-            while IFS= read -r asset_line; do
-              asset_name=$(echo "$asset_line" | awk '{print $1}')
-              asset_url=$(echo "$asset_line" | awk '{print $2}')
-
-              # Skip downloading if asset already exists on Codeberg
-              if echo "$existing_asset_names" | grep -q "$asset_name"; then
-                echo "Asset $asset_name already exists, skipping download."
-                continue
-              fi
-
+            # Download Assets
+            while IFS= read -r line; do
+              asset_name=$(echo "$line" | awk '{print $1}')
+              asset_url=$(echo "$line" | awk '{print $2}')
               echo "Downloading asset: $asset_name from: $asset_url"
               if curl -L -O "$asset_url"; then
                 echo "$asset_name downloaded successfully."
@@ -106,12 +69,30 @@ jobs:
               fi
             done < assets.txt
 
-            # Upload Assets to Codeberg
+            # Verify Downloads
+            echo "Downloaded Files:"
+            ls -al *.exe *.dmg
+
+            # Check or create release on Codeberg
+            release_check=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${tag_name}")
+
+            if [[ "$release_check" == *"Not Found"* ]]; then
+              echo "Creating new release for tag $tag_name."
+              release_data="{\"tag_name\":\"$tag_name\",\"name\":\"Release $tag_name\",\"body\":\"Release for tag $tag_name\"}"
+              release_response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$release_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
+              echo "Release creation response: $release_response"
+              release_id=$(echo "$release_response" | jq -r '.id')  # Extract release ID
+            else
+              echo "Release for tag $tag_name found."
+              release_id=$(echo "$release_check" | jq -r '.id')  # Extract release ID
+            fi
+
+            # Upload Assets
             for asset_name in *.dmg *.exe; do
               if [[ -f "$asset_name" ]]; then
                 upload_url="https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/$release_id/assets?name=$asset_name"
                 echo "Uploading asset $asset_name to release for tag $tag_name."
-
+                
                 response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/octet-stream" --data-binary @"$asset_name" "$upload_url" -w "HTTPSTATUS:%{http_code}")
                 http_code=$(echo "$response" | sed -e 's/HTTPSTATUS://')
 
@@ -127,11 +108,10 @@ jobs:
                 # Optional: Add a slight delay to prevent rate limiting
                 sleep 2
               else
-                echo "Asset $asset_name does not exist, skipping."
+                echo "Asset $asset_name does not exist for release $tag_name, skipping."
               fi
             done
-            
-            # Clean up downloaded files for the next release
+
+            # Clean up downloaded assets for the next iteration
             rm -f *.dmg *.exe
-            
-          done < releases.txt
+          done

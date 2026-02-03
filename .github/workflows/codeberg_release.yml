@@ -91,7 +91,7 @@ jobs:
             echo "Using extracted tag name: $tag_name"
 
             # Create a new release for the assets using the extracted tag name
-            release_data="{\"tag_name\":\"$tag_name\",\"name\":\"Release $tag_name\",\"body\":\"Release for tag $tag_name\"}"
+            release_data="{\"tag_name\":\"$tag_name\",\"name\":\"$tag_name\",\"body\":\"Release for tag $tag_name\"}"  # Using tag_name for both tag and name
             echo "Release Data: $release_data"  # Debug output
 
             # Make the API call to create the release

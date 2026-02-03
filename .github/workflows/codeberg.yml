@@ -45,7 +45,7 @@ jobs:
 
           # Check if releases were returned
           if [ "$(echo "$releases" | jq '. | length')" -gt 0 ]; then
-            echo "$releases" | jq -c '.[]' | while read release; do
+            echo "$releases" | jq -c '.[]' | while IFS= read -r release; do
               tag=$(echo "$release" | jq -r '.tag_name')
               assets=$(echo "$release" | jq -c '.assets[]?')
 
@@ -61,12 +61,12 @@ jobs:
                   echo "Created tag: $tag"
                 fi
                 # Push the tag to Codeberg
-                git push codeberg "$tag"
+                git push codeberg "$tag" || echo "Failed to push tag: $tag"
               fi
 
               # Handle release assets only if they exist
               if [ -n "$assets" ]; then
-                echo "$assets" | while read asset; do
+                echo "$assets" | while IFS= read -r asset; do
                   if [ -n "$asset" ]; then  # Check if the asset is not empty
                     asset_name=$(echo "$asset" | jq -r '.name')
                     asset_url=$(echo "$asset" | jq -r '.url')
@@ -76,16 +76,13 @@ jobs:
 
                     # Download the asset using the GitHub API
                     download_url="${asset_url}?access_token=${{ secrets.GITHUB_TOKEN }}"
-                    curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -o "$asset_name" "$download_url"
-
-                    # Check if the download was successful
-                    if [ $? -eq 0 ]; then
+                    if curl -L -H "Authorization: token ${GITHUB_TOKEN}" -o "$asset_name" "$download_url"; then
                       # Move to the releases directory
                       mv "$asset_name" "releases/$asset_name"
                       # Add and commit the asset
                       git add "releases/$asset_name"
-                      git commit -m "Add release asset $asset_name for $tag"
-                      git push codeberg master
+                      git commit -m "Add release asset $asset_name for $tag" || echo "No changes to commit for $asset_name"
+                      git push codeberg master || echo "Failed to push asset $asset_name"
                     else
                       echo "Failed to download asset: $asset_name"
                     fi

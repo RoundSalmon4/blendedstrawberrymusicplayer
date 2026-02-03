@@ -20,6 +20,14 @@ jobs:
           git config --global user.email "codebergsync.nzvel@simplelogin.com"
           git config --global user.name "RoundSalmon4"
 
+      - name: Add Codeberg Remote
+        env:
+          CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
+        run: |
+          echo "Adding Codeberg remote..."
+          git remote add codeberg https://$CODEBERG_TOKEN@codeberg.org/unwanted9855/blended-strawberry.git
+          git remote -v  # Verify that the remote has been added
+
       - name: Sync Releases to Codeberg
         env:
           CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
@@ -72,6 +80,7 @@ jobs:
                   echo "Successfully committed $asset_name."
                 else
                   echo "No changes to commit for $asset_name. It may already exist."
+                  continue  # Skip uploading if commit fails
                 fi
 
                 echo "Pushing asset to Codeberg..."

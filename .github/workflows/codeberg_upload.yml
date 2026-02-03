@@ -1,4 +1,4 @@
-name: Sync to Codeberg2
+name: Sync to Codeberg
 
 on:
   push:
@@ -73,9 +73,15 @@ jobs:
                   fi
                 fi
 
-                # Pull the latest status before pushing
+                # Pull and ensure there are no conflicts
                 echo "Fetching latest updates from Codeberg..."
                 git fetch codeberg
+
+                # Check if the asset file already exists and remove it before merging
+                if [ -f "releases/$asset_name" ]; then
+                  echo "Removing local asset $asset_name to avoid merge conflicts."
+                  rm "releases/$asset_name"
+                fi
 
                 # Attempt to merge any changes from remote
                 if ! git merge codeberg/master --allow-unrelated-histories; then

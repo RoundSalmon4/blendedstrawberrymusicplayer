@@ -34,16 +34,27 @@ jobs:
           git checkout -b "$branch_name"
           echo "Created branch $branch_name"
 
+      - name: Get Most Recent Git Tag
+        id: get_tag
+        run: |
+          tags=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/tags")
+          most_recent_tag=$(echo "$tags" | jq -r '.[0].name // empty')
+          if [ -z "$most_recent_tag" ]; then
+            echo "No tags found in repository."
+            exit 1
+          fi
+          echo "Using GitHub tag: $most_recent_tag"
+          echo "most_recent_tag=$most_recent_tag" >> $GITHUB_ENV
+
+      - name: Create Tag
+        run: |
+          git tag "${{ env.most_recent_tag }}"
+          git push origin "${{ env.most_recent_tag }}"  # Push to Codeberg or appropriate remote
+
       - name: Create Release
         id: create_release
         run: |
-          # Getting the most recent tag from GitHub
-          tags=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/tags")
-          most_recent_tag=$(echo "$tags" | jq -r '.[0].name // empty')
-          echo "Using GitHub tag: $most_recent_tag"
-
-          # Create a new release using the most recent tag
-          release_data="{\"tag_name\":\"$most_recent_tag\",\"name\":\"$most_recent_tag\",\"body\":\"Release for tag $most_recent_tag\"}"
+          release_data="{\"tag_name\":\"${{ env.most_recent_tag }}\",\"name\":\"${{ env.most_recent_tag }}\",\"body\":\"Release for tag ${{ env.most_recent_tag }}\"}"
           echo "Release Data: $release_data"
 
           release_response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$release_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
@@ -57,7 +68,7 @@ jobs:
 
           echo "Release created successfully."
 
-          # Extract asset download URLs (modify according to your assets)
+          # Create assets.txt dynamically based on available assets
           echo "https://example.com/asset1.zip" >> assets.txt
           echo "https://example.com/asset2.zip" >> assets.txt
           echo "https://example.com/asset3.zip" >> assets.txt

@@ -64,11 +64,17 @@ jobs:
             exit 0
           fi
 
+          echo "Assets to download: $asset_list"  # Output the asset URLs for debugging
+
           # Download each asset
           echo "$asset_list" | while read -r asset_url; do
+            if [ -z "$asset_url" ]; then
+              echo "Empty URL, skipping."
+              continue
+            fi
+
             asset_name=$(basename "$asset_url")
             echo "Downloading asset: $asset_name"
-            # Download and ensure it completes before moving on
             curl -L -O -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$asset_url" && \
             echo "$asset_name downloaded successfully." || \
             echo "Failed to download $asset_name."
@@ -76,6 +82,7 @@ jobs:
             # Pause for a brief moment (e.g., 2 seconds)
             sleep 2
           done
+
 
       - name: Download Each Asset
         run: |

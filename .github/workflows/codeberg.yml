@@ -34,16 +34,19 @@ jobs:
           CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Create releases directory if it doesn't exist
           mkdir -p releases
 
           # Fetch releases from GitHub
           releases=$(curl --silent "https://api.github.com/repos/${{ github.repository }}/releases")
 
+          # Check if releases were returned
           if [ "$(echo "$releases" | jq '. | length')" -gt 0 ]; then
-            echo "$releases" | jq -c '.[]' | while read release; do
+            echo "$releases" | jq -c '.[]' | while IFS= read -r release; do
               tag=$(echo "$release" | jq -r '.tag_name')
               assets_count=$(echo "$release" | jq '.assets | length')
 
+              # Check if the tag exists on Codeberg
               if ! git ls-remote --tags codeberg | grep -q "$tag"; then
                 if ! git tag | grep -q "$tag"; then
                   git tag "$tag"
@@ -52,18 +55,24 @@ jobs:
               fi
 
               # Download assets if they exist
-              for ((i=0; i<${assets_count}; i++)); do
+              for ((i=0; i<assets_count; i++)); do
                 asset_url=$(echo "$release" | jq -r ".assets[$i].url")
                 asset_name=$(echo "$release" | jq -r ".assets[$i].name")
 
-                # Download asset with proper authorization
-                if curl -L -H "Authorization: token ${GITHUB_TOKEN}" -o "$asset_name" "$asset_url"; then
-                  mv "$asset_name" "releases/$asset_name"
-                  git add "releases/$asset_name"
-                  git commit -m "Add release asset $asset_name for $tag"
-                  git push codeberg master
+                # Ensure the URL is correct
+                if [ -n "$asset_url" ] && [ -n "$asset_name" ]; then
+                  # Download asset with proper authorization
+                  echo "Downloading asset: $asset_name from $asset_url"
+                  if curl -L -H "Authorization: Bearer ${GITHUB_TOKEN}" -o "$asset_name" "$asset_url"; then
+                    mv "$asset_name" "releases/$asset_name"
+                    git add "releases/$asset_name"
+                    git commit -m "Add release asset $asset_name for $tag" || echo "No changes to commit."
+                    git push codeberg master || echo "Failed to push to Codeberg."
+                  else
+                    echo "Failed to download asset: $asset_name"
+                  fi
                 else
-                  echo "Failed to download asset: $asset_name"
+                  echo "Asset URL or Name is empty, skipping."
                 fi
               done
             done

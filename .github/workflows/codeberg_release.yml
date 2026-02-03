@@ -64,6 +64,11 @@ jobs:
             fi
           done < assets.txt
 
+      - name: Verify Downloads
+        run: |
+          echo "Downloaded Files:"
+          ls -al *.exe *.dmg
+
       - name: Upload Assets to Codeberg
         run: |
           for asset_name in *.dmg *.exe; do
@@ -99,28 +104,22 @@ jobs:
             fi
             echo "Uploaded $asset_name successfully."
           done
-          
+
       - name: Verify File Existence
         run: |
           echo "Current Directory Contents:"
           ls -al  # List all files in the current directory for verification
-          
-      - name: Stage Uploaded Files
-        run: |
-          git add .
-          echo "Staging changes for commit..."
-          git status  # Show the current Git status
-
 
       - name: Stage Uploaded Files
         run: |
+          echo "Current directory: $(pwd)"
           git add .
           echo "Staging changes for commit..."
           git status  # Show the current Git status
 
       - name: Commit Uploaded Files
         run: |
-          # Check if there are changes to commit
+          echo "Checking for changes..."
           if ! git diff --cached --quiet; then
             echo "Changes detected, committing..."
             git commit -m "Uploaded assets for ${{ env.tag_name }}"

@@ -63,32 +63,24 @@ jobs:
 
       - name: Upload Assets to Codeberg
         run: |
+          echo "Checking for release with tag ${{ env.tag_name }}."
+          release=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${{ env.tag_name }}")
+
+          if [[ "$release" == *"Not Found"* ]]; then
+              echo "Release with tag ${{ env.tag_name }} does not exist. Creating a new release."
+              release_data="{\"tag_name\":\"${{ env.tag_name }}\",\"name\":\"Release ${{ env.tag_name }}\",\"body\":\"Release for tag ${{ env.tag_name }}\"}"
+              release_response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$release_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
+              echo "Release creation response: $release_response"
+          else
+              echo "Release for tag ${{ env.tag_name }} found."
+          fi
+
           for asset_name in *.dmg *.exe; do
             if [[ ! -f "$asset_name" ]]; then
               echo "Asset $asset_name does not exist, skipping."
               continue
             fi
-            
-            echo "Checking if release exists for tag ${{ env.tag_name }}."
-            release=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${{ env.tag_name }}")
 
-            # Create release if not found
-            if [[ "$release" == *"Not Found"* ]]; then
-              echo "Creating release for tag ${{ env.tag_name }}."
-              release_data="{\"tag_name\":\"${{ env.tag_name }}\",\"name\":\"Release ${{ env.tag_name }}\",\"body\":\"Release for tag ${{ env.tag_name }}\"}"
-              release_response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$release_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
-
-              echo "Release creation response: $release_response"
-
-              if [[ "$release_response" == *"\"id\":"* ]]; then
-                echo "Release created successfully."
-              else
-                echo "Failed to create release. Response: $release_response"
-                exit 1
-              fi
-            fi
-
-            # Upload the asset
             echo "Uploading asset $asset_name to release for tag ${{ env.tag_name }}."
             upload_url="https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/assets?name=$asset_name"
 
@@ -96,7 +88,11 @@ jobs:
               echo "Failed to upload $asset_name. Response: $response"
               exit 1
             fi
+            
             echo "Upload response for $asset_name: $response"
-            echo "Uploaded $asset_name successfully."
-          done
+            if [[ "$response" != *"\"id\":"* ]]; then
+              echo "Upload of $asset_name failed or was not successful. Response: $response"
+              exit 1
+            fi
 
+            echo "Uploaded $asset_name successfully."

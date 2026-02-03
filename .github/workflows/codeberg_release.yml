@@ -1,10 +1,7 @@
 name: Sync Releases to Codeberg
-
 on:
-  push:
-    branches:
-      - master
-  workflow_dispatch:
+  workflow_dispatch:  # Allows manual triggering of the workflow
+
 
 permissions:
   contents: write
@@ -66,7 +63,7 @@ jobs:
         run: |
           git remote add codeberg https://$CODEBERG_TOKEN@codeberg.org/unwanted9855/blended-strawberry.git || echo "Remote 'codeberg' already exists."
 
-      - name: Download Assets
+      - name: Download and Upload Assets
         run: |
           while IFS= read -r asset_url; do
             if [ -z "$asset_url" ]; then
@@ -78,28 +75,34 @@ jobs:
             echo "Downloading asset: $asset_name"
             if curl -L -O -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$asset_url"; then
               echo "$asset_name downloaded successfully."
-              
-              # Add the downloaded file to Git
-              git add "$asset_name"
 
-              # Commit the addition to a temporary branch for upload
-              git checkout -b upload-assets
-              git commit -m "Add asset: $asset_name"
+              # Check if the release exists on Codeberg for the current tag
+              release=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${{ env.most_recent_tag }}")
+              if [[ "$release" == *"Not Found"* ]]; then
+                # Create a new release if it does not exist
+                echo "Creating release for tag ${env.most_recent_tag}."
+                release_data="{\"tag_name\":\"${{ env.most_recent_tag }}\",\"name\":\"Release ${{ env.most_recent_tag }}\",\"body\":\"Release for tag ${{ env.most_recent_tag }}\"}"
+                release_response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$release_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
+                if [[ "$release_response" == *"\"id\":"* ]]; then
+                  echo "Release created successfully."
+                else
+                  echo "Failed to create release. Exiting."
+                  exit 1
+                fi
+              fi
 
-              # Push to Codeberg
-              git push --force codeberg upload-assets:master || {
-                echo "Failed to push to Codeberg. Exiting."
+              # Upload the asset to the release
+              echo "Uploading asset ${asset_name} to release for tag ${env.most_recent_tag}."
+              upload_url="https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/assets?name=${asset_name}"
+              if ! curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: $(file -b --mime-type "$asset_name")" --data-binary @"$asset_name" "$upload_url"; then
+                echo "Failed to upload ${asset_name}. Exiting."
                 exit 1
-              }
-
-              # Switch back to the master branch and delete the temporary branch
-              git checkout master
-              git branch -D upload-assets
+              fi
             else
               echo "Failed to download $asset_name. Exiting."
               exit 1
             fi
 
-            # Pause for a moment (e.g., 2 seconds)
+            # Pause briefly
             sleep 2
           done < assets.txt  # Read URLs from the generated file

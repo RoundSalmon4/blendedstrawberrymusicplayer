@@ -57,14 +57,15 @@ jobs:
             exit 1
           fi
 
-          # Extract asset URLs using browser_download_url
+          # Extract asset URLs using browser_download_url and check
           asset_list=$(echo "$release_info" | jq -r '.assets[].browser_download_url // empty')
           if [ -z "$asset_list" ]; then
             echo "No assets found for the tag ${most_recent_tag}."
             exit 0
           fi
 
-          echo "Assets to download: $asset_list"  # Output the asset URLs for debugging
+          echo "Assets to download:"
+          echo "$asset_list"  # Print the extracted asset URLs
 
           # Download each asset
           echo "$asset_list" | while read -r asset_url; do
@@ -82,7 +83,6 @@ jobs:
             # Pause for a brief moment (e.g., 2 seconds)
             sleep 2
           done
-
 
       - name: Download Each Asset
         run: |

@@ -13,96 +13,67 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout the repository with full history
+      - name: Checkout the repository
         uses: actions/checkout@v2
         with:
           fetch-depth: 0
 
-      - name: Discard uncommitted changes
+      - name: Get Latest Release Tag
+        id: get_release
         run: |
-          git reset --hard
+          latest_release=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/latest")
+          tag_name=$(echo "$latest_release" | jq -r '.tag_name // empty')
+          if [ -z "$tag_name" ]; then
+            echo "No latest release found."
+            exit 1
+          fi
+          echo "Latest release tag: $tag_name"
+          echo "tag_name=$tag_name" >> $GITHUB_ENV
 
-      - name: Configure Git User
+      - name: Download Assets from Latest Release
         run: |
-          git config --global user.email "codebergsync.nzvel@simplelogin.com"
-          git config --global user.name "RoundSalmon4"
+          assets_url=$(echo "$latest_release" | jq -r '.assets[].url')
+          for url in $assets_url; do
+            asset_name=$(basename "$url")
+            echo "Downloading asset: $asset_name"
+            curl -L -O -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$url"
+          done
 
-      - name: Create New Branch
+      - name: Create New Branch on Codeberg
         id: create_branch
         run: |
           branch_name="upload-assets-${{ github.run_id }}"
           git checkout -b "$branch_name"
-          echo "Created branch $branch_name"
+          git push origin "$branch_name"  # Push to Codeberg
 
-      - name: Get Most Recent Git Tag
-        id: get_tag
+      - name: Create Tag and Release on Codeberg
         run: |
-          tags=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/tags")
-          most_recent_tag=$(echo "$tags" | jq -r '.[0].name // empty')
-          if [ -z "$most_recent_tag" ]; then
-            echo "No tags found in repository."
-            exit 1
-          fi
-          echo "Using GitHub tag: $most_recent_tag"
-          echo "most_recent_tag=$most_recent_tag" >> $GITHUB_ENV
+          git tag "${{ env.tag_name }}"
+          git push origin "${{ env.tag_name }}"  # Push to Codeberg
 
-      - name: Create Tag
-        run: |
-          git tag "${{ env.most_recent_tag }}"
-          git push origin "${{ env.most_recent_tag }}"  # Push to Codeberg or appropriate remote
-
-      - name: Create Release
-        id: create_release
-        run: |
-          release_data="{\"tag_name\":\"${{ env.most_recent_tag }}\",\"name\":\"${{ env.most_recent_tag }}\",\"body\":\"Release for tag ${{ env.most_recent_tag }}\"}"
-          echo "Release Data: $release_data"
-
+          release_data="{\"tag_name\":\"${{ env.tag_name }}\",\"name\":\"${{ env.tag_name }}\",\"body\":\"Release for tag ${{ env.tag_name }}\"}"
           release_response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$release_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
           
-          echo "Release API Response: $release_response"
-
           if [[ "$release_response" != *"\"id\":"* ]]; then
             echo "Failed to create release. Response: $release_response"
             exit 1
           fi
-
           echo "Release created successfully."
 
-          # Create assets.txt dynamically based on available assets
-          echo "https://example.com/asset1.zip" >> assets.txt
-          echo "https://example.com/asset2.zip" >> assets.txt
-          echo "https://example.com/asset3.zip" >> assets.txt
-          echo "assets.txt created with asset URLs."
-
-      - name: Download and Upload Assets
+      - name: Upload Assets to New Branch
         run: |
-          while IFS= read -r asset_url; do
-            if [ -z "$asset_url" ]; then
-              echo "Empty URL, skipping."
-              continue
-            fi
-
-            asset_name=$(basename "$asset_url")
-            echo "Downloading asset: $asset_name"
-            if ! curl -L -O -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$asset_url"; then
-              echo "Failed to download $asset_name. Exiting."
-              exit 1
-            fi
-            echo "$asset_name downloaded successfully."
-
-            # Upload the asset to the release
-            upload_url="https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/assets?name=$(basename "$asset_name")"
+          for asset_name in *.zip; do  # Adjust the pattern based on your asset types
+            upload_url="https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/assets?name=$asset_name"
             echo "Uploading asset $asset_name."
             if ! curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: $(file -b --mime-type "$asset_name")" --data-binary @"$asset_name" "$upload_url"; then
               echo "Failed to upload $asset_name to Codeberg. Exiting."
               exit 1
             fi
             echo "$asset_name uploaded successfully."
+          done
 
-          done < assets.txt  # Read URLs from the generated file
-
-      - name: Merge Back to Master
+      - name: Merge Branch with Master on Codeberg
         run: |
           git checkout master
           git merge "$branch_name"
-          git push codeberg master
+          git push origin master

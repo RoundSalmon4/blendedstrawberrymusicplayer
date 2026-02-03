@@ -28,7 +28,7 @@ jobs:
           git remote add codeberg https://$CODEBERG_TOKEN@codeberg.org/unwanted9855/blended-strawberry.git
           git remote -v  # Verify that the remote has been added
 
-      - name: Sync Releases to Codeberg
+      - name: Sync Releases and Handle Push Conflicts
         env:
           CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -71,6 +71,16 @@ jobs:
                     echo "Failed to download asset: $asset_name"
                     continue  # Skip to next asset if download fails
                   fi
+                fi
+
+                # Pull the latest status before pushing
+                echo "Fetching latest updates from Codeberg..."
+                git fetch codeberg
+
+                # Attempt to merge any changes from remote
+                if ! git merge codeberg/master --allow-unrelated-histories; then
+                  echo "Merge conflicts detected. Please resolve manually."
+                  exit 1  # Stop execution on merge conflicts
                 fi
 
                 # Upload the asset to Codeberg

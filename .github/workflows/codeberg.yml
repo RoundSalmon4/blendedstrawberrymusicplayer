@@ -37,9 +37,13 @@ jobs:
           curl --silent "https://api.github.com/repos/${{ github.repository }}/releases" | jq -r '.[] | .tag_name' | while read tag; do
             # Check if the tag exists on Codeberg
             if ! git ls-remote --tags codeberg | grep -q "$tag"; then
-              # Create a lightweight tag
-              git tag "$tag"
+              # Check if the tag exists locally
+              if ! git tag | grep -q "$tag"; then
+                # Create a lightweight tag
+                git tag "$tag"
+              fi
               # Push the tag to Codeberg
               git push codeberg "$tag"
             fi
           done
+

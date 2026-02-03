@@ -74,19 +74,17 @@ jobs:
               upload_url="https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/assets?name=$asset_name"
               echo "Uploading asset $asset_name to release for tag ${{ env.tag_name }}."
               
-              response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: $(file -b --mime-type "$asset_name")" --data-binary @"$asset_name" "$upload_url")
+              # Verbose curl output
+              response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: $(file -b --mime-type "$asset_name")" --data-binary @"$asset_name" "$upload_url" -w "HTTPSTATUS:%{http_code}")
+              http_code=$(echo "$response" | sed -e 's/HTTPSTATUS://')
 
-              if [[ $? -ne 0 ]]; then
-                echo "Failed to upload $asset_name. Response: $response"
+              echo "Upload response for $asset_name: $response"
+              
+              if [[ "$http_code" -ne 201 ]]; then
+                echo "Failed to upload $asset_name. HTTP Status: $http_code. Response: $response"
                 exit 1
               fi
               
-              echo "Upload response for $asset_name: $response"
-              if [[ "$response" != *"\"id\":"* ]]; then
-                echo "Upload of $asset_name failed or was not successful. Response: $response"
-                exit 1
-              fi
-
               echo "Uploaded $asset_name successfully."
 
               # Optional: Add a slight delay to prevent rate limiting
@@ -96,4 +94,3 @@ jobs:
             fi
           done
 
-          done

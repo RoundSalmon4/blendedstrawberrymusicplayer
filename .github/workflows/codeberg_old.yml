@@ -97,3 +97,32 @@ jobs:
               fi
             done < assets.txt
 
+            # Upload Assets to Codeberg
+            for asset_name in *.dmg *.exe; do
+              if [[ -f "$asset_name" ]]; then
+                upload_url="https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/$release_id/assets?name=$asset_name"
+                echo "Uploading asset $asset_name to release for tag $tag_name."
+
+                response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/octet-stream" --data-binary @"$asset_name" "$upload_url" -w "HTTPSTATUS:%{http_code}")
+                http_code=$(echo "$response" | sed -e 's/HTTPSTATUS://')
+
+                echo "Upload response for $asset_name: $response"
+                
+                if [[ "$http_code" -ne 201 ]]; then
+                  echo "Failed to upload $asset_name. HTTP Status: $http_code. Response: $response"
+                  exit 1
+                fi
+                
+                echo "Uploaded $asset_name successfully."
+
+                # Optional: Add a slight delay to prevent rate limiting
+                sleep 2
+              else
+                echo "Asset $asset_name does not exist, skipping."
+              fi
+            done
+            
+            # Clean up downloaded files for the next release
+            rm -f *.dmg *.exe
+            
+          done < releases.txt

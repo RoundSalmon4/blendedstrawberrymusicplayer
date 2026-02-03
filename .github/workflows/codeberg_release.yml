@@ -18,6 +18,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set up Git LFS
+        run: |
+          git lfs install
+          git lfs track "*.exe"
+          git lfs track "*.dmg"
+          echo "*.exe filter=lfs diff=lfs merge=lfs -text" >> .gitattributes
+          echo "*.dmg filter=lfs diff=lfs merge=lfs -text" >> .gitattributes
+
       - name: Clean previous downloads and uncommitted changes
         run: |
           echo "Cleaning up previous downloads and uncommitted changes..."

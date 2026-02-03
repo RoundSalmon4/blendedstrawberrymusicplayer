@@ -48,19 +48,17 @@ jobs:
         run: |
           release_info=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ env.most_recent_tag }}")
           if [[ "$release_info" == *"Not Found"* ]]; then
-            echo "Creating a new release for tag ${env.most_recent_tag}."
-            release_info=$(curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -d "{\"tag_name\": \"${{ env.most_recent_tag }}\", \"name\": \"Release ${{ env.most_recent_tag }}\"}" "https://api.github.com/repos/${{ github.repository }}/releases")
+            echo "Error: Release not found for tag ${env.most_recent_tag}."
+            exit 1
           fi
 
           asset_list=$(echo "$release_info" | jq -r '.assets[].browser_download_url // empty')
-
           if [ -z "$asset_list" ]; then
             echo "No assets found for the tag ${env.most_recent_tag}."
             exit 0
           fi
 
           echo "$asset_list" > assets.txt  # Save asset URLs to a text file for the next step
-          echo "Assets to download saved to assets.txt."
 
       - name: Pull Changes from Codeberg
         env:
@@ -68,7 +66,7 @@ jobs:
         run: |
           git remote add codeberg https://$CODEBERG_TOKEN@codeberg.org/unwanted9855/blended-strawberry.git || echo "Remote 'codeberg' already exists."
 
-      - name: Download and Upload Assets
+      - name: Download Assets
         run: |
           while IFS= read -r asset_url; do
             if [ -z "$asset_url" ]; then
@@ -80,13 +78,20 @@ jobs:
             echo "Downloading asset: $asset_name"
             if curl -L -O -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$asset_url"; then
               echo "$asset_name downloaded successfully."
-              
-              # Upload the asset to the appropriate release on Codeberg
-              echo "Uploading $asset_name to Codeberg..."
-              curl -X POST -H "Authorization: token $CODEBERG_TOKEN" -H "Content-Type: application/octet-stream" --data-binary @"$asset_name" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/assets?name=$asset_name" || {
-                echo "Failed to upload $asset_name. Exiting."
-                exit 1
-              }
+
+              # Prepare to upload the downloaded file to the GitHub release
+              release_id=$(echo "$release_info" | jq -r '.id')
+              upload_url=$(echo "$release_info" | jq -r '.upload_url' | sed "s/{?name,label}//")
+              echo "Uploading asset to release ID: $release_id"
+
+              # Uploading the asset directly to GitHub
+              curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                -H "Content-Type: $(file -b --mime-type "$asset_name")" \
+                --data-binary @"$asset_name" \
+                "$upload_url?name=$asset_name" || {
+                  echo "Failed to upload $asset_name. Exiting."
+                  exit 1
+                }
             else
               echo "Failed to download $asset_name. Exiting."
               exit 1

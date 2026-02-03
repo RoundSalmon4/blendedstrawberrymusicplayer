@@ -49,7 +49,7 @@ jobs:
       - name: Get Release Information for Most Recent Tag
         run: |
           release_info=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ env.most_recent_tag }}")
-          echo "Release Info Response: $release_info"  # Debug: Check the response
+          echo "Release Info Response: $release_info"  # Print the release information for debugging
 
           # Check for errors
           if [[ "$release_info" == *"Not Found"* ]]; then
@@ -57,15 +57,17 @@ jobs:
             exit 1
           fi
 
-          # Extract asset URLs using browser_download_url and check
-          asset_list=$(echo "$release_info" | jq -r '.assets[].browser_download_url // empty')
+          # Extract asset URLs
+          asset_list=$(echo "$release_info" | jq -r '.assets[].browser_download_url')
+
+          # Print asset URLs for debugging
+          echo "Assets to download:"
+          echo "$asset_list"  
+
           if [ -z "$asset_list" ]; then
             echo "No assets found for the tag ${most_recent_tag}."
             exit 0
           fi
-
-          echo "Assets to download:"
-          echo "$asset_list"  # Print the extracted asset URLs
 
           # Download each asset
           echo "$asset_list" | while read -r asset_url; do
@@ -80,9 +82,10 @@ jobs:
             echo "$asset_name downloaded successfully." || \
             echo "Failed to download $asset_name."
 
-            # Pause for a brief moment (e.g., 2 seconds)
+            # Pause for a moment (e.g., 2 seconds)
             sleep 2
           done
+
 
       - name: Download Each Asset
         run: |

@@ -99,11 +99,18 @@ jobs:
             fi
             echo "Uploaded $asset_name successfully."
           done
-
-      - name: Configure Git Identity
+          
+      - name: Verify File Existence
         run: |
-          git config --global user.email "actions@github.com"
-          git config --global user.name "GitHub Actions"
+          echo "Current Directory Contents:"
+          ls -al  # List all files in the current directory for verification
+          
+      - name: Stage Uploaded Files
+        run: |
+          git add .
+          echo "Staging changes for commit..."
+          git status  # Show the current Git status
+
 
       - name: Stage Uploaded Files
         run: |

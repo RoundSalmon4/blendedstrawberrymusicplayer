@@ -30,8 +30,8 @@ jobs:
           echo "Latest release tag: $tag_name"
           echo "tag_name=$tag_name" >> $GITHUB_ENV
           
-          # Create assets.txt from the asset URLs
-          echo "$latest_release" | jq -r '.assets[].url' > assets.txt
+          # Create assets.txt with both name and URL
+          echo "$latest_release" | jq -r '.assets[] | "\(.name) \(.url)"' > assets.txt
 
       - name: Create New Branch on Codeberg
         id: create_branch
@@ -54,13 +54,15 @@ jobs:
 
       - name: Download and Upload Assets
         run: |
-          while IFS= read -r asset_url; do
+          while IFS= read -r line; do
+            asset_name=$(echo "$line" | awk '{print $1}')  # Grab the filename
+            asset_url=$(echo "$line" | awk '{print $2}')   # Grab the URL
+            
             if [ -z "$asset_url" ]; then
               echo "Empty URL, skipping."
               continue
             fi
 
-            asset_name=$(basename "$asset_url")
             echo "Downloading asset: $asset_name"
             if curl -L -O -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$asset_url"; then
               echo "$asset_name downloaded successfully."
@@ -72,6 +74,7 @@ jobs:
                 echo "Creating release for tag ${{ env.tag_name }}."
                 release_data="{\"tag_name\":\"${{ env.tag_name }}\",\"name\":\"Release ${{ env.tag_name }}\",\"body\":\"Release for tag ${{ env.tag_name }}\"}"
                 release_response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$release_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
+
                 if [[ "$release_response" == *"\"id\":"* ]]; then
                   echo "Release created successfully."
                 else
@@ -100,9 +103,15 @@ jobs:
         run: |
           git checkout master
           git pull origin master  # Update local master branch to ensure it's up to date
-          if git merge "$branch_name"; then
-            echo "Merged $branch_name into master successfully."
-            git push origin master
+          
+          if [[ "$(git status --porcelain)" ]]; then
+            if git merge "$branch_name"; then
+              echo "Merged $branch_name into master successfully."
+              git push origin master
+            else
+              echo "Merge failed. Exiting."
+              exit 1
+            fi
           else
             echo "No changes to merge."
           fi

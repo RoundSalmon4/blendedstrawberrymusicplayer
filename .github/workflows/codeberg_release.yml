@@ -4,7 +4,7 @@ on:
   workflow_dispatch:  # Only run on manual trigger
 
 permissions:
-  contents: read  # Read-only permissions since we won't modify GitHub repo
+  contents: write  # Required to create a new branch and commit to Codeberg
   issues: write
   pull-requests: write
   deployments: write
@@ -35,8 +35,15 @@ jobs:
           echo "Latest release tag: $tag_name"
           echo "tag_name=$tag_name" >> $GITHUB_ENV
           
-          # Create assets.txt with both name and direct download URL
           echo "$latest_release" | jq -r '.assets[] | "\(.name) \(.browser_download_url)"' > assets.txt
+
+      - name: Create New Branch on Codeberg
+        id: create_branch
+        run: |
+          branch_name="upload-assets-${{ github.run_id }}"
+          echo "Creating new branch: $branch_name"
+          git checkout -b "$branch_name"
+          echo "branch_name=$branch_name" >> $GITHUB_ENV
 
       - name: Check if Tag Exists on Codeberg
         id: check_tag
@@ -50,12 +57,11 @@ jobs:
             echo "tag_exists=false" >> $GITHUB_ENV
           fi
 
-      - name: Download and Upload Assets
+      - name: Download Assets
         run: |
           while IFS= read -r line; do
-            asset_name=$(echo "$line" | awk '{print $1}')  # Grab the filename
-            asset_url=$(echo "$line" | awk '{print $2}')   # Grab the direct download URL
-            
+            asset_name=$(echo "$line" | awk '{print $1}')
+            asset_url=$(echo "$line" | awk '{print $2}')
             if [ -z "$asset_url" ]; then
               echo "Empty URL, skipping."
               continue
@@ -64,48 +70,70 @@ jobs:
             echo "Downloading asset from: $asset_url"
             if curl -L -O "$asset_url"; then
               echo "$asset_name downloaded successfully."
-
-              # Check if the downloaded file exists
               if [[ ! -f "$asset_name" ]]; then
                 echo "File $asset_name does not exist after download. Exiting."
                 exit 1
               fi
-
-              # Get file size for upload check
-              file_size=$(stat -c%s "$asset_name")
-              echo "File size of $asset_name: $file_size bytes"
-
-              # Check if the release exists on Codeberg for the current tag
-              release=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${{ env.tag_name }}")
-              if [[ "$release" == *"Not Found"* ]]; then
-                # Create a new release if it does not exist
-                echo "Creating release for tag ${{ env.tag_name }}."
-                release_data="{\"tag_name\":\"${{ env.tag_name }}\",\"name\":\"Release ${{ env.tag_name }}\",\"body\":\"Release for tag ${{ env.tag_name }}\"}"
-                release_response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$release_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
-
-                if [[ "$release_response" == *"\"id\":"* ]]; then
-                  echo "Release created successfully. Response: $release_response"
-                else
-                  echo "Failed to create release. Exiting. Response: $release_response"
-                  exit 1
-                fi
-              fi
-
-              # Upload the asset to the release
-              echo "Uploading asset $asset_name to release for tag ${{ env.tag_name }}."
-              upload_url="https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/assets?name=$asset_name"
-
-              if ! curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: $(file -b --mime-type "$asset_name")" --data-binary @"$asset_name" "$upload_url"; then
-                echo "Failed to upload $asset_name. Exiting."
-                exit 1
-              fi
-
-              echo "Uploaded $asset_name successfully."
+              echo "Downloaded $asset_name successfully."
             else
               echo "Failed to download $asset_name. Exiting."
               exit 1
             fi
+          done < assets.txt
 
-            # Pause briefly before the next iteration
-            sleep 2
-          done < assets.txt  # Read URLs from the generated file
+      - name: Upload Assets to Codeberg
+        run: |
+          for asset_name in *.dmg *.exe; do
+            if [[ ! -f "$asset_name" ]]; then
+              echo "Asset $asset_name does not exist, skipping."
+              continue
+            fi
+            
+            release=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${{ env.tag_name }}")
+            if [[ "$release" == *"Not Found"* ]]; then
+              echo "Creating release for tag ${{ env.tag_name }}."
+              release_data="{\"tag_name\":\"${{ env.tag_name }}\",\"name\":\"Release ${{ env.tag_name }}\",\"body\":\"Release for tag ${{ env.tag_name }}\"}"
+              release_response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$release_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
+
+              if [[ "$release_response" == *"\"id\":"* ]]; then
+                echo "Release created successfully."
+              else
+                echo "Failed to create release. Exiting."
+                exit 1
+              fi
+            fi
+
+            echo "Uploading asset $asset_name to release for tag ${{ env.tag_name }}."
+            upload_url="https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/assets?name=$asset_name"
+
+            if ! curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: $(file -b --mime-type "$asset_name")" --data-binary @"$asset_name" "$upload_url"; then
+              echo "Failed to upload $asset_name. Exiting."
+              exit 1
+            fi
+
+            echo "Uploaded $asset_name successfully."
+          done
+
+      - name: Configure Git Identity
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+
+      - name: Stage and Commit Uploaded Files
+        run: |
+          git add .
+          git commit -m "Uploaded assets for ${{ env.tag_name }}" || echo "No changes to commit"
+
+      - name: Merge Branch with Master on Codeberg
+        run: |
+          git checkout master
+          git pull origin master  # Update local master branch to ensure it's up to date
+
+          echo "Merging branch: ${{ env.branch_name }}"
+          if ! git merge "${{ env.branch_name }}"; then
+            echo "Merge failed. Check if there is anything to merge."
+            exit 1
+          fi
+
+          echo "Merged ${{ env.branch_name }} into master successfully."
+          git push origin master

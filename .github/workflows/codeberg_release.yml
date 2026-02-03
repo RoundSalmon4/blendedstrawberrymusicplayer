@@ -1,10 +1,10 @@
 name: Sync Releases to Codeberg
 
 on:
-  workflow_dispatch:  # Only run on manual trigger
+  workflow_dispatch:  # Trigger manually
 
 permissions:
-  contents: write  # Required to create a new branch and commit to Codeberg
+  contents: write  # Allow action to write to repository
   issues: write
   pull-requests: write
   deployments: write
@@ -13,12 +13,12 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout the repository
+      - name: Checkout Repository
         uses: actions/checkout@v2
         with:
           fetch-depth: 0
 
-      - name: Clean previous downloads
+      - name: Clean Previous Downloads
         run: |
           echo "Cleaning up previous downloads..."
           rm -f *.dmg *.exe
@@ -45,14 +45,12 @@ jobs:
               echo "Empty URL, skipping."
               continue
             fi
-
             echo "Downloading asset from: $asset_url"
-            if curl -L -O "$asset_url"; then
-              echo "$asset_name downloaded successfully."
-            else
+            if ! curl -L -O "$asset_url"; then
               echo "Failed to download $asset_name. Exiting."
               exit 1
             fi
+            echo "$asset_name downloaded successfully."
           done < assets.txt
 
       - name: Verify Downloads

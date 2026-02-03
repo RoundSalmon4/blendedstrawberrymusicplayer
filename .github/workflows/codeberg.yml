@@ -34,63 +34,38 @@ jobs:
           CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Create releases directory if it doesn't exist
           mkdir -p releases
 
           # Fetch releases from GitHub
           releases=$(curl --silent "https://api.github.com/repos/${{ github.repository }}/releases")
 
-          # Debugging: Output fetched releases
-          echo "Fetched releases: $releases"
-
-          # Check if releases were returned
           if [ "$(echo "$releases" | jq '. | length')" -gt 0 ]; then
-            echo "$releases" | jq -c '.[]' | while IFS= read -r release; do
+            echo "$releases" | jq -c '.[]' | while read release; do
               tag=$(echo "$release" | jq -r '.tag_name')
-              assets=$(echo "$release" | jq -c '.assets[]?')
+              assets_count=$(echo "$release" | jq '.assets | length')
 
-              # Debugging: Log the tag being processed
-              echo "Processing tag: $tag"
-
-              # Check if the tag exists on Codeberg
               if ! git ls-remote --tags codeberg | grep -q "$tag"; then
-                # Check if the tag exists locally
                 if ! git tag | grep -q "$tag"; then
-                  # Create a lightweight tag
                   git tag "$tag"
-                  echo "Created tag: $tag"
                 fi
-                # Push the tag to Codeberg
-                git push codeberg "$tag" || echo "Failed to push tag: $tag"
+                git push codeberg "$tag"
               fi
 
-              # Handle release assets only if they exist
-              if [ -n "$assets" ]; then
-                echo "$assets" | while IFS= read -r asset; do
-                  if [ -n "$asset" ]; then  # Check if the asset is not empty
-                    asset_name=$(echo "$asset" | jq -r '.name')
-                    asset_url=$(echo "$asset" | jq -r '.url')
+              # Download assets if they exist
+              for ((i=0; i<${assets_count}; i++)); do
+                asset_url=$(echo "$release" | jq -r ".assets[$i].url")
+                asset_name=$(echo "$release" | jq -r ".assets[$i].name")
 
-                    # Debugging: Log the asset being processed
-                    echo "Downloading asset: $asset_name from $asset_url"
-
-                    # Download the asset using the GitHub API
-                    download_url="${asset_url}?access_token=${{ secrets.GITHUB_TOKEN }}"
-                    if curl -L -H "Authorization: token ${GITHUB_TOKEN}" -o "$asset_name" "$download_url"; then
-                      # Move to the releases directory
-                      mv "$asset_name" "releases/$asset_name"
-                      # Add and commit the asset
-                      git add "releases/$asset_name"
-                      git commit -m "Add release asset $asset_name for $tag" || echo "No changes to commit for $asset_name"
-                      git push codeberg master || echo "Failed to push asset $asset_name"
-                    else
-                      echo "Failed to download asset: $asset_name"
-                    fi
-                  fi
-                done
-              else
-                echo "No assets found for tag: $tag"
-              fi
+                # Download asset with proper authorization
+                if curl -L -H "Authorization: token ${GITHUB_TOKEN}" -o "$asset_name" "$asset_url"; then
+                  mv "$asset_name" "releases/$asset_name"
+                  git add "releases/$asset_name"
+                  git commit -m "Add release asset $asset_name for $tag"
+                  git push codeberg master
+                else
+                  echo "Failed to download asset: $asset_name"
+                fi
+              done
             done
           else
             echo "No releases found."

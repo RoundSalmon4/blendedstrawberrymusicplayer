@@ -24,34 +24,30 @@ jobs:
           git config --global user.email "codebergsync.nzvel@simplelogin.com"
           git config --global user.name "RoundSalmon4"
 
-      - name: Get Latest Release Information
-        id: get_latest_release
+      - name: Get All Releases and Fetch Latest Assets
         run: |
-          latest_release=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest)
-          echo "Latest Release Response: $latest_release"  # Debug: Check the response
+          # Fetch all releases
+          releases=$(curl -s -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/repos/${{ github.repository }}/releases")
+          echo "All Releases Response: $releases"  # Debug: Check the response
 
-          # Store the release ID in an environment variable
-          latest_release_id=$(echo "$latest_release" | jq -r '.id // empty')
-          echo "Latest Release ID: $latest_release_id"
-          if [ -z "$latest_release_id" ]; then
-            echo "No latest release found."
+          # Ensure there are releases
+          latest_release=$(echo "$releases" | jq -r '.[0] // empty')
+          if [ -z "$latest_release" ]; then
+            echo "No releases found."
             exit 0
           fi
-          
-          echo "latest_release_id=$latest_release_id" >> $GITHUB_ENV
 
-      - name: Download Latest Release Assets
-        run: |
-          # Use the latest_release_id from the previous step
-          assets_url="https://api.github.com/repos/${{ github.repository }}/releases/$LATEST_RELEASE_ID/assets"
-          echo "Fetching assets from: $assets_url"
-          
-          # Fetch asset list
-          asset_list=$(curl -s -H "Authorization: token $GITHUB_TOKEN" -H "Accept: application/json" "$assets_url")
-          echo "Asset List Response: $asset_list"  # Debugging: Check the response structure
+          # Fetch asset URLs from the latest release
+          asset_list=$(echo "$latest_release" | jq -r '.assets[].url')
 
-          # Extract URLs and download each asset
-          echo "$asset_list" | jq -r '.[] | .url' | while read -r asset_url; do
+          # Check if assets are present
+          if [ -z "$asset_list" ]; then
+            echo "No assets found for the latest release."
+            exit 0
+          fi
+
+          # Download each asset
+          echo "$asset_list" | while read -r asset_url; do
             asset_name=$(basename "$asset_url")
             echo "Downloading asset: $asset_name"
             curl -L -O -H "Authorization: token $GITHUB_TOKEN" "$asset_url"

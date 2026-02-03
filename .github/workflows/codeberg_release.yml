@@ -74,8 +74,8 @@ jobs:
               upload_url="https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/assets?name=$asset_name"
               echo "Uploading asset $asset_name to release for tag ${{ env.tag_name }}."
               
-              # Verbose curl output
-              response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: $(file -b --mime-type "$asset_name")" --data-binary @"$asset_name" "$upload_url" -w "HTTPSTATUS:%{http_code}")
+              # If using multipart/form-data, change content type and CURL command
+              response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/octet-stream" --data-binary @"$asset_name" "$upload_url" -w "HTTPSTATUS:%{http_code}")
               http_code=$(echo "$response" | sed -e 's/HTTPSTATUS://')
 
               echo "Upload response for $asset_name: $response"
@@ -93,4 +93,5 @@ jobs:
               echo "Asset $asset_name does not exist, skipping."
             fi
           done
+
 

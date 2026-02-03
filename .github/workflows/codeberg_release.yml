@@ -15,6 +15,10 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Discard uncommitted changes
+        run: |
+          git reset --hard
+
       - name: Configure Git User
         run: |
           git config --global user.email "codebergsync.nzvel@simplelogin.com"

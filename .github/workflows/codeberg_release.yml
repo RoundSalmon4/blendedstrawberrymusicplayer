@@ -79,7 +79,7 @@ jobs:
               
               # Check if the release exists on Codeberg for the current tag
               release=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${{ env.most_recent_tag }}")
-              release_id=""
+              
               if [[ "$release" == *"Not Found"* ]]; then
                 # Create a new release if it does not exist
                 echo "Creating release for tag ${env.most_recent_tag}."
@@ -88,25 +88,23 @@ jobs:
                 
                 if [[ "$release_response" == *"\"id\":"* ]]; then
                   echo "Release created successfully."
-                  release_id=$(echo "$release_response" | jq -r '.id')  # Get the release ID
                 else
                   echo "Failed to create release. Exiting."
                   exit 1
                 fi
-              else
-                release_id=$(echo "$release" | jq -r '.id')  # Get the existing release ID
               fi
 
-              # Upload the asset to the release
-              echo "Uploading asset $asset_name to release for tag ${{ env.most_recent_tag }}."
+              # Get the upload URL for the assets
               upload_url="https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/assets?name=$(basename "$asset_name")"
+              echo "Uploading asset $asset_name to release for tag ${{ env.most_recent_tag }}."
               response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: $(file -b --mime-type "$asset_name")" --data-binary @"$asset_name" "$upload_url")
-              
+
+              # Check if the upload was successful
               if [[ "$response" == *"\"id\":"* ]]; then
                 echo "$asset_name uploaded successfully."
                 uploaded_assets+=($(echo "$response" | jq -r '.url'))  # Capture the uploaded asset URL
               else
-                echo "Failed to upload $asset_name. Exiting."
+                echo "Failed to upload $asset_name. Response: $response. Exiting."
                 exit 1
               fi
             else

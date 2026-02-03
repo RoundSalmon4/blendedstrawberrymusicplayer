@@ -24,26 +24,37 @@ jobs:
           git config --global user.email "codebergsync.nzvel@simplelogin.com"
           git config --global user.name "RoundSalmon4"
 
-      - name: Get Latest Release Information
-        id: get_latest_release
+      - name: Get All Tags
+        id: get_tags
         run: |
-          # Using the default GITHUB_TOKEN provided by GitHub Actions
-          releases=$(curl -s -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/repos/${{ github.repository }}/releases/latest")
-          echo "Latest Release Response: $releases"  # Debug: Check the response
+          tags=$(curl -s -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/repos/${{ github.repository }}/tags")
+          echo "Tags Response: $tags"  # Debug: Check the response
 
-          # Ensure there are releases
-          latest_release=$(echo "$releases" | jq -r 'if .message then .message else . end')
-          if [[ "$latest_release" == *"Not Found"* || "$latest_release" == *"Bad credentials"* ]]; then
-            echo "Error: $latest_release"
+          # Get the most recent tag
+          most_recent_tag=$(echo "$tags" | jq -r '.[0].name // empty')
+          if [ -z "$most_recent_tag" ]; then
+            echo "No tags found."
+            exit 0
+          fi
+
+          echo "Most Recent Tag: $most_recent_tag"
+          echo "most_recent_tag=$most_recent_tag" >> $GITHUB_ENV
+
+      - name: Get Release Information for Most Recent Tag
+        run: |
+          release_info=$(curl -s -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ env.most_recent_tag }}")
+          echo "Release Info Response: $release_info"  # Debug: Check the response
+
+          # Check for errors
+          if [[ "$release_info" == *"Not Found"* ]]; then
+            echo "Error: Release not found for tag ${TAG}."
             exit 1
           fi
 
-          echo "Latest Release: $latest_release"
-
-          # Extract the asset URLs
-          asset_list=$(echo "$latest_release" | jq -r '.assets[].url // empty')
+          # Extract asset URLs
+          asset_list=$(echo "$release_info" | jq -r '.assets[].url // empty')
           if [ -z "$asset_list" ]; then
-            echo "No assets found for the latest release."
+            echo "No assets found for the tag ${most_recent_tag}."
             exit 0
           fi
 

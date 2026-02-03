@@ -34,41 +34,34 @@ jobs:
           git checkout -b "$branch_name"
           echo "Created branch $branch_name"
 
-      - name: Get All Tags
-        id: get_tags
+      - name: Create Release
+        id: create_release
         run: |
+          # Getting the most recent tag from GitHub
           tags=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/tags")
-          if [ -z "$tags" ]; then
-            echo "No tags found."
-            exit 1
-          fi
-
           most_recent_tag=$(echo "$tags" | jq -r '.[0].name // empty')
-          echo "Most Recent Tag: $most_recent_tag"
-          echo "most_recent_tag=$most_recent_tag" >> $GITHUB_ENV
+          echo "Using GitHub tag: $most_recent_tag"
 
-      - name: Get Release Information for Most Recent Tag
-        id: get_release_info
-        run: |
-          release_info=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ env.most_recent_tag }}")
-          if [[ "$release_info" == *"Not Found"* ]]; then
-            echo "Error: Release not found for tag ${env.most_recent_tag}."
+          # Create a new release using the most recent tag
+          release_data="{\"tag_name\":\"$most_recent_tag\",\"name\":\"$most_recent_tag\",\"body\":\"Release for tag $most_recent_tag\"}"
+          echo "Release Data: $release_data"
+
+          release_response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$release_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
+          
+          echo "Release API Response: $release_response"
+
+          if [[ "$release_response" != *"\"id\":"* ]]; then
+            echo "Failed to create release. Response: $release_response"
             exit 1
           fi
 
-          asset_list=$(echo "$release_info" | jq -r '.assets[].browser_download_url // empty')
-          if [ -z "$asset_list" ]; then
-            echo "No assets found for the tag ${env.most_recent_tag}."
-            exit 0
-          fi
+          echo "Release created successfully."
 
-          echo "$asset_list" > assets.txt  # Save asset URLs to a text file for the next step
-
-      - name: Pull Changes from Codeberg
-        env:
-          CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
-        run: |
-          git remote add codeberg https://$CODEBERG_TOKEN@codeberg.org/unwanted9855/blended-strawberry.git || echo "Remote 'codeberg' already exists."
+          # Extract asset download URLs (modify according to your assets)
+          echo "https://example.com/asset1.zip" >> assets.txt
+          echo "https://example.com/asset2.zip" >> assets.txt
+          echo "https://example.com/asset3.zip" >> assets.txt
+          echo "assets.txt created with asset URLs."
 
       - name: Download and Upload Assets
         run: |
@@ -86,26 +79,6 @@ jobs:
             fi
             echo "$asset_name downloaded successfully."
 
-            # Extract tag name from the asset filename (e.g., strawberry-1.2.18-arm64.dmg -> 1.2.18)
-            tag_name=$(echo "$asset_name" | grep -oP '\d+\.\d+\.\d+')
-            echo "Using extracted tag name: $tag_name"
-
-            # Create a new release using the extracted tag name
-            release_data="{\"tag_name\":\"$tag_name\",\"name\":\"$tag_name\",\"body\":\"Release for tag $tag_name\"}"
-            echo "Release Data: $release_data"  # Debug output
-
-            # Make the API call to create the release
-            release_response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$release_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
-            
-            # Output the raw response to see what's coming back
-            echo "Release API Response: $release_response"
-
-            if [[ "$release_response" != *"\"id\":"* ]]; then
-              echo "Failed to create release for $asset_name. Response: $release_response"
-              exit 1
-            fi
-            echo "Release created successfully."
-
             # Upload the asset to the release
             upload_url="https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/assets?name=$(basename "$asset_name")"
             echo "Uploading asset $asset_name."
@@ -116,7 +89,6 @@ jobs:
             echo "$asset_name uploaded successfully."
 
           done < assets.txt  # Read URLs from the generated file
-
 
       - name: Merge Back to Master
         run: |

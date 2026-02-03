@@ -36,8 +36,8 @@ jobs:
           echo "Latest release tag: $tag_name"
           echo "tag_name=$tag_name" >> $GITHUB_ENV
           
-          # Create assets.txt with both name and URL
-          echo "$latest_release" | jq -r '.assets[] | "\(.name) \(.url)"' > assets.txt
+          # Create assets.txt with both name and direct download URL
+          echo "$latest_release" | jq -r '.assets[] | "\(.name) \(.browser_download_url)"' > assets.txt
 
       - name: Create New Branch on Codeberg
         id: create_branch
@@ -62,7 +62,7 @@ jobs:
         run: |
           while IFS= read -r line; do
             asset_name=$(echo "$line" | awk '{print $1}')  # Grab the filename
-            asset_url=$(echo "$line" | awk '{print $2}')   # Grab the URL
+            asset_url=$(echo "$line" | awk '{print $2}')   # Grab the direct download URL
             
             if [ -z "$asset_url" ]; then
               echo "Empty URL, skipping."
@@ -70,7 +70,7 @@ jobs:
             fi
 
             echo "Downloading asset from: $asset_url"
-            if curl -L -O -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$asset_url"; then
+            if curl -L -O "$asset_url"; then
               echo "$asset_name downloaded successfully."
 
               # Check if the downloaded file exists in a loop

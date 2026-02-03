@@ -28,3 +28,18 @@ jobs:
           git fetch codeberg
           git merge codeberg/master --allow-unrelated-histories || true
           git push codeberg master
+
+      - name: Sync Releases to Codeberg
+        env:
+          CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
+        run: |
+          # Fetch releases from GitHub
+          curl --silent "https://api.github.com/repos/${{ github.repository }}/releases" | jq -r '.[] | .tag_name' | while read tag; do
+            # Check if the tag exists on Codeberg
+            if ! git ls-remote --tags codeberg | grep -q "$tag"; then
+              # Create a lightweight tag
+              git tag "$tag"
+              # Push the tag to Codeberg
+              git push codeberg "$tag"
+            fi
+          done

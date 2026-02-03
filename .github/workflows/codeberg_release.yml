@@ -1,27 +1,22 @@
-name: Sync Releases to Codeberg
+name: Prepare Release for Manual Upload
 
 on:
   workflow_dispatch:  # Trigger manually
 
 permissions:
-  contents: write  # Allow action to write to repository
+  contents: read  # Read access since we're not writing
   issues: write
   pull-requests: write
   deployments: write
 
 jobs:
-  sync:
+  prepare:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v2
         with:
           fetch-depth: 0
-
-      - name: Clean Previous Downloads
-        run: |
-          echo "Cleaning up previous downloads..."
-          rm -f *.dmg *.exe
 
       - name: Get Latest Release Info
         id: get_release
@@ -34,46 +29,9 @@ jobs:
           fi
           echo "Latest release tag: $tag_name"
           echo "tag_name=$tag_name" >> $GITHUB_ENV
-          echo "$latest_release" | jq -r '.assets[] | "\(.name) \(.browser_download_url)"' > assets.txt
 
-      - name: Download Assets
+      - name: Prepare Upload Link
         run: |
-          while IFS= read -r line; do
-            asset_name=$(echo "$line" | awk '{print $1}')
-            asset_url=$(echo "$line" | awk '{print $2}')
-            echo "Downloading asset: $asset_name from: $asset_url"
-            curl -L -O "$asset_url" || { echo "Failed to download $asset_name. Exiting."; exit 1; }
-            echo "$asset_name downloaded successfully."
-          done < assets.txt
-
-      - name: Verify Downloads
-        run: |
-          echo "Downloaded Files:"
-          ls -al *.exe *.dmg
-
-      - name: Upload Assets to Codeberg
-        run: |
-          release=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${{ env.tag_name }}")
-          if [[ "$release" == *"Not Found"* ]]; then
-              echo "Creating new release for tag ${{ env.tag_name }}."
-              release_data="{\"tag_name\":\"${{ env.tag_name }}\",\"name\":\"Release ${{ env.tag_name }}\",\"body\":\"Release for tag ${{ env.tag_name }}\"}"
-              release_response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$release_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
-          else
-              echo "Release for tag ${{ env.tag_name }} found. Proceeding with uploads."
-          fi
-
-          for asset_name in *.dmg *.exe; do
-            if [[ -f "$asset_name" ]]; then
-              upload_url="https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/assets?name=$asset_name"
-              response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: $(file -b --mime-type "$asset_name")" --data-binary @"$asset_name" "$upload_url")
-              echo "Upload response for $asset_name: $response"
-              if [[ "$response" == *"\"id\":"* ]]; then
-                echo "Uploaded $asset_name successfully."
-              else
-                echo "Upload of $asset_name failed. Response: $response"
-                exit 1
-              fi
-            else
-              echo "Asset $asset_name does not exist, skipping."
-            fi
-          done
+          echo "Prepare to manually upload assets."
+          release_url="https://codeberg.org/unwanted9855/blended-strawberry/releases/tag/${{ env.tag_name }}"
+          echo "You can upload your assets manually using the following URL: $release_url"

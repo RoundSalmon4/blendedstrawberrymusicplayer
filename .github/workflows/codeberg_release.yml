@@ -35,7 +35,13 @@ jobs:
         run: |
           latest_release_id=$(echo $latest_release | jq -r .id)
           assets_url="https://api.github.com/repos/${{ github.repository }}/releases/$latest_release_id/assets"
+          
+          # Fetch asset list and check the response
           asset_list=$(curl -s -H "Authorization: token $GITHUB_TOKEN" -H "Accept: application/json" "$assets_url")
+          echo "Asset List Response: $asset_list"  # Debug: Check the response structure
+
+          # Verify if asset_list is a valid JSON array
+          echo "$asset_list" | jq 'if type == "array" then "Valid" else "Invalid" end'  # Check if the response is an array
 
           # Loop through the assets and download each one
           echo "$asset_list" | jq -r '.[].url' | while read -r asset_url; do

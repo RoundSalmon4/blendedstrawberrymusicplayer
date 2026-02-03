@@ -46,19 +46,35 @@ jobs:
           git checkout -b "$branch_name"
           git push origin "$branch_name"  # Push to Codeberg
 
+      - name: Check if Tag Exists on Codeberg
+        id: check_tag
+        run: |
+          existing_tag=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/tags" | jq -r '.[].name' | grep "${{ env.tag_name }}")
+          if [ "$existing_tag" == "${{ env.tag_name }}" ]; then
+            echo "Tag ${{ env.tag_name }} already exists."
+            echo "tag_exists=true" >> $GITHUB_ENV
+          else
+            echo "Tag ${{ env.tag_name }} does not exist."
+            echo "tag_exists=false" >> $GITHUB_ENV
+          fi
+
       - name: Create Tag and Release on Codeberg
         run: |
-          git tag "${{ env.tag_name }}"
-          git push origin "${{ env.tag_name }}"  # Push to Codeberg
+          if [ "${{ env.tag_exists }}" == "false" ]; then
+            git tag "${{ env.tag_name }}"
+            git push origin "${{ env.tag_name }}"  # Push to Codeberg
 
-          release_data="{\"tag_name\":\"${{ env.tag_name }}\",\"name\":\"${{ env.tag_name }}\",\"body\":\"Release for tag ${{ env.tag_name }}\"}"
-          release_response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$release_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
-          
-          if [[ "$release_response" != *"\"id\":"* ]]; then
-            echo "Failed to create release. Response: $release_response"
-            exit 1
+            release_data="{\"tag_name\":\"${{ env.tag_name }}\",\"name\":\"${{ env.tag_name }}\",\"body\":\"Release for tag ${{ env.tag_name }}\"}"
+            release_response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$release_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
+
+            if [[ "$release_response" != *"\"id\":"* ]]; then
+              echo "Failed to create release. Response: $release_response"
+              exit 1
+            fi
+            echo "Release created successfully."
+          else
+            echo "Skipping tag and release creation as the tag already exists."
           fi
-          echo "Release created successfully."
 
       - name: Upload Assets to New Branch
         run: |

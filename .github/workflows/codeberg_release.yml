@@ -100,11 +100,26 @@ jobs:
             echo "Uploaded $asset_name successfully."
           done
 
-      - name: Stage and Commit Uploaded Files
+      - name: Configure Git Identity
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+
+      - name: Stage Uploaded Files
         run: |
           git add .
-          echo "Attempting to commit changes..."
-          git commit -m "Uploaded assets for ${{ env.tag_name }}" || echo "No changes to commit"
+          echo "Staging changes for commit..."
+          git status  # Show the current Git status
+
+      - name: Commit Uploaded Files
+        run: |
+          # Check if there are changes to commit
+          if ! git diff --cached --quiet; then
+            echo "Changes detected, committing..."
+            git commit -m "Uploaded assets for ${{ env.tag_name }}"
+          else
+            echo "No changes to commit, skipping commit step."
+          fi
 
       - name: Merge Branch with Master on Codeberg
         run: |

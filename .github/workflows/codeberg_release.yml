@@ -28,8 +28,17 @@ jobs:
         id: get_latest_release
         run: |
           latest_release=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest)
+          echo "Latest Release Response: $latest_release"  # Debug: Check the response
+
+          # Check if a release was found
+          if [[ "$latest_release" == *"Not Found"* ]]; then
+            echo "No releases found."
+            exit 0  # Exit if no release is found
+          fi
+
           echo "tag_name=$(echo $latest_release | jq -r .tag_name)" >> $GITHUB_ENV
           echo "assets_url=$(echo $latest_release | jq -r .assets_url)" >> $GITHUB_ENV
+
 
       - name: Download Latest Release Assets
         run: |

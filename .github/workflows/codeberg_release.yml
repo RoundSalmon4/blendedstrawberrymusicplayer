@@ -28,7 +28,7 @@ jobs:
         run: |
           echo "Cleaning up previous downloads and uncommitted changes..."
           rm -f *.dmg *.exe  # Remove previous downloads
-          git checkout .      # Revert any uncommitted changes
+          git reset --hard HEAD  # Revert any uncommitted changes
 
       - name: Get Latest Release Info
         id: get_release

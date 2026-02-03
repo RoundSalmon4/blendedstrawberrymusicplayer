@@ -24,23 +24,24 @@ jobs:
           git config --global user.email "codebergsync.nzvel@simplelogin.com"
           git config --global user.name "RoundSalmon4"
 
-      - name: Get All Releases and Fetch Latest Assets
+      - name: Get Latest Release Information
+        id: get_latest_release
         run: |
-          # Fetch all releases
-          releases=$(curl -s -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/repos/${{ github.repository }}/releases")
-          echo "All Releases Response: $releases"  # Debug: Check the response
+          # Using the default GITHUB_TOKEN provided by GitHub Actions
+          releases=$(curl -s -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/repos/${{ github.repository }}/releases/latest")
+          echo "Latest Release Response: $releases"  # Debug: Check the response
 
           # Ensure there are releases
-          latest_release=$(echo "$releases" | jq -r '.[0] // empty')
-          if [ -z "$latest_release" ]; then
-            echo "No releases found."
-            exit 0
+          latest_release=$(echo "$releases" | jq -r 'if .message then .message else . end')
+          if [[ "$latest_release" == *"Not Found"* || "$latest_release" == *"Bad credentials"* ]]; then
+            echo "Error: $latest_release"
+            exit 1
           fi
 
-          # Fetch asset URLs from the latest release
-          asset_list=$(echo "$latest_release" | jq -r '.assets[].url')
+          echo "Latest Release: $latest_release"
 
-          # Check if assets are present
+          # Extract the asset URLs
+          asset_list=$(echo "$latest_release" | jq -r '.assets[].url // empty')
           if [ -z "$asset_list" ]; then
             echo "No assets found for the latest release."
             exit 0

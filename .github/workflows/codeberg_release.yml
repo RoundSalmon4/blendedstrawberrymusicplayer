@@ -19,13 +19,6 @@ jobs:
           fetch-depth: 0
           lfs: false  # Ensure that Git LFS is completely disabled
 
-      - name: Remove Git LFS configuration
-        run: |
-          git lfs uninstall  # Uninstall any existing Git LFS hooks
-          git config --global --unset filter.lfs.smudge  # Remove LFS smudge filter
-          git config --global --unset filter.lfs.clean  # Remove LFS clean filter
-          git config --global --remove-section lfs || true  # Remove LFS section if it exists
-
       - name: Set up Codeberg Remote
         run: |
           git remote remove origin  # Remove the default GitHub remote

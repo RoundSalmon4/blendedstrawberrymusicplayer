@@ -141,15 +141,12 @@ jobs:
         run: |
           git checkout master
           git pull origin master  # Update local master branch to ensure it's up to date
-          
-          if [[ "$(git status --porcelain)" ]]; then
-            echo "No changes to merge from $branch_name into master."
-          else
-            if git merge "$branch_name"; then
-              echo "Merged $branch_name into master successfully."
-              git push origin master
-            else
-              echo "Merge failed. Exiting."
-              exit 1
-            fi
-          fi
+
+          echo "Merging branch: $branch_name"
+          git merge "$branch_name" || {
+            echo "Merge failed. Check if there is anything to merge."
+            exit 1
+          }
+
+          echo "Merged $branch_name into master successfully."
+          git push origin master

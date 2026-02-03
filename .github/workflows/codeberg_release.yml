@@ -37,13 +37,15 @@ jobs:
             curl -L -O -H "Authorization: token $GITHUB_TOKEN" "$asset_url"
           done < asset_urls.txt
 
+      - name: Clean untracked files
+        run: git clean -fd
+
       - name: Push to Codeberg
         env:
           CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
         run: |
           git remote add codeberg https://$CODEBERG_TOKEN@codeberg.org/unwanted9855/blended-strawberry.git
-          git fetch codeberg
-          git merge codeberg/master --allow-unrelated-histories || true
+          git pull --rebase codeberg master
           git add .
           git commit -m "Sync latest release assets" || echo "No changes to commit"
           git push codeberg master

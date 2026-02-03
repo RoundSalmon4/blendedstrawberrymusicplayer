@@ -24,12 +24,12 @@ jobs:
         id: get_latest_release
         run: |
           latest_release=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest)
-          echo "::set-output name=tag_name::$(echo $latest_release | jq -r .tag_name)"
-          echo "::set-output name=assets_url::$(echo $latest_release | jq -r .assets_url)"
+          echo "tag_name=$(echo $latest_release | jq -r .tag_name)" >> $GITHUB_ENV
+          echo "assets_url=$(echo $latest_release | jq -r .assets_url)" >> $GITHUB_ENV
 
       - name: Download latest release assets
         run: |
-          assets_url="${{ steps.get_latest_release.outputs.assets_url }}"
+          assets_url="${{ env.assets_url }}"
           assets=$(curl -s -H "Accept: application/vnd.github.v3.raw" "$assets_url")
           echo "$assets" | jq -r '.[].url' > asset_urls.txt
 

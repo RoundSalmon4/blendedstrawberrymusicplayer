@@ -34,7 +34,10 @@ jobs:
           CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
         run: |
           # Fetch releases from GitHub
-          curl --silent "https://api.github.com/repos/${{ github.repository }}/releases" | jq -r '.[] | .tag_name' | while read tag; do
+          curl --silent "https://api.github.com/repos/${{ github.repository }}/releases" | jq -c '.[]' | while read release; do
+            tag=$(echo "$release" | jq -r '.tag_name')
+            assets=$(echo "$release" | jq -c '.assets[]')
+
             # Check if the tag exists on Codeberg
             if ! git ls-remote --tags codeberg | grep -q "$tag"; then
               # Check if the tag exists locally
@@ -45,5 +48,24 @@ jobs:
               # Push the tag to Codeberg
               git push codeberg "$tag"
             fi
-          done
 
+            # Handle release assets
+            echo "$assets" | while read asset; do
+              asset_name=$(echo "$asset" | jq -r '.name')
+              asset_url=$(echo "$asset" | jq -r '.url')
+              
+              # Download the asset using the GitHub API
+              download_url="${asset_url}?access_token=${{ secrets.GITHUB_TOKEN }}"
+              curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -o "$asset_name" "$download_url"
+
+              # Check if the file already exists on Codeberg
+              git fetch codeberg
+              if ! git ls-remote --heads codeberg | grep -q "$asset_name"; then
+                # Add and commit the asset
+                mv "$asset_name" "releases/$asset_name"  # Moving to a subdirectory if needed
+                git add "releases/$asset_name"
+                git commit -m "Add release asset $asset_name for $tag"
+                git push codeberg master
+              fi
+            done
+          done

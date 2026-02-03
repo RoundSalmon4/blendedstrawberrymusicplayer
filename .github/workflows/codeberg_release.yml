@@ -87,6 +87,10 @@ jobs:
                 exit 1
               fi
 
+              # Get file size for upload check
+              file_size=$(stat -c%s "$asset_name")
+              echo "File size of $asset_name: $file_size bytes"
+
               # Check if the release exists on Codeberg for the current tag
               release=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${{ env.tag_name }}")
               if [[ "$release" == *"Not Found"* ]]; then
@@ -106,9 +110,11 @@ jobs:
               # Upload the asset to the release
               echo "Uploading asset $asset_name to release for tag ${{ env.tag_name }}."
               upload_url="https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/assets?name=$asset_name"
-              sleep 2  # Brief pause before upload to ensure file is ready
+
               if ! curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: $(file -b --mime-type "$asset_name")" --data-binary @"$asset_name" "$upload_url"; then
                 echo "Failed to upload $asset_name. Exiting."
+                echo "Response from upload attempt:"
+                curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: $(file -b --mime-type "$asset_name")" --data-binary @"$asset_name" "$upload_url"
                 exit 1
               fi
 

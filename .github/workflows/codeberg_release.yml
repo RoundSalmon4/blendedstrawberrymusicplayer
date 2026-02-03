@@ -17,7 +17,14 @@ jobs:
         uses: actions/checkout@v2
         with:
           fetch-depth: 0
-          lfs: false  # Disable Git LFS
+          lfs: false  # Ensure that Git LFS is completely disabled
+
+      - name: Remove Git LFS configuration
+        run: |
+          git lfs uninstall  # Uninstall any existing Git LFS hooks
+          git config --global --unset filter.lfs.smudge  # Remove LFS smudge filter
+          git config --global --unset filter.lfs.clean  # Remove LFS clean filter
+          git config --global --remove-section lfs || true  # Remove LFS section if it exists
 
       - name: Set up Codeberg Remote
         run: |
@@ -28,7 +35,7 @@ jobs:
         run: |
           echo "Cleaning up previous downloads and uncommitted changes..."
           rm -f *.dmg *.exe  # Remove previous downloads
-          git reset --hard HEAD  # Revert any uncommitted changes
+          git reset --hard HEAD  # Reset to the last committed state
 
       - name: Get Latest Release Info
         id: get_release
@@ -75,12 +82,12 @@ jobs:
               echo "Empty URL, skipping."
               continue
             fi
-
+            
             echo "Downloading asset from: $asset_url"
             if curl -L -O "$asset_url"; then
               echo "$asset_name downloaded successfully."
 
-              # Check if the downloaded file exists in a loop
+              # Verify downloaded file's existence
               for i in {1..10}; do
                 sleep 1  # Wait before checking
                 if [[ -f "$asset_name" ]]; then
@@ -98,7 +105,7 @@ jobs:
               file_size=$(stat -c%s "$asset_name")
               echo "File size of $asset_name: $file_size bytes"
 
-              # Check if the release exists on Codeberg for the current tag
+              # Check if release exists on Codeberg for the current tag
               release=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${{ env.tag_name }}")
               if [[ "$release" == *"Not Found"* ]]; then
                 # Create a new release if it does not exist
@@ -117,11 +124,9 @@ jobs:
               # Upload the asset to the release
               echo "Uploading asset $asset_name to release for tag ${{ env.tag_name }}."
               upload_url="https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/assets?name=$asset_name"
-
+              
               if ! curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: $(file -b --mime-type "$asset_name")" --data-binary @"$asset_name" "$upload_url"; then
                 echo "Failed to upload $asset_name. Exiting."
-                echo "Response from upload attempt:"
-                curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: $(file -b --mime-type "$asset_name")" --data-binary @"$asset_name" "$upload_url"
                 exit 1
               fi
 
@@ -148,7 +153,7 @@ jobs:
       - name: Merge Branch with Master on Codeberg
         run: |
           git checkout master
-          git pull origin master  # Update local master branch to ensure it's up to date
+          git pull origin master  # Ensure local master is up to date
 
           echo "Merging branch: ${{ env.branch_name }}"
           if ! git merge "${{ env.branch_name }}"; then

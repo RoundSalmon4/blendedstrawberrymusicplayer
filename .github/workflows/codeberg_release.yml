@@ -1,0 +1,49 @@
+name: Sync Releases to Codeberg
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the repository with full history
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git User
+        run: |
+          git config --global user.email "codebergsync.nzvel@simplelogin.com"
+          git config --global user.name "RoundSalmon4"
+
+      - name: Get latest release information
+        id: get_latest_release
+        run: |
+          latest_release=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest)
+          echo "::set-output name=tag_name::$(echo $latest_release | jq -r .tag_name)"
+          echo "::set-output name=assets_url::$(echo $latest_release | jq -r .assets_url)"
+
+      - name: Download latest release assets
+        run: |
+          assets_url="${{ steps.get_latest_release.outputs.assets_url }}"
+          assets=$(curl -s -H "Accept: application/vnd.github.v3.raw" "$assets_url")
+          echo "$assets" | jq -r '.[].url' > asset_urls.txt
+
+          while read -r asset_url; do
+            curl -L -O -H "Authorization: token $GITHUB_TOKEN" "$asset_url"
+          done < asset_urls.txt
+
+      - name: Push to Codeberg
+        env:
+          CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
+        run: |
+          git remote add codeberg https://$CODEBERG_TOKEN@codeberg.org/unwanted9855/blended-strawberry.git
+          git fetch codeberg
+          git merge codeberg/master --allow-unrelated-histories || true
+          git add .
+          git commit -m "Sync latest release assets" || echo "No changes to commit"
+          git push codeberg master

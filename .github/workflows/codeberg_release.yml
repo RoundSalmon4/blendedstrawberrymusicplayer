@@ -78,20 +78,23 @@ jobs:
             echo "Downloading asset: $asset_name"
             if curl -L -O -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$asset_url"; then
               echo "$asset_name downloaded successfully."
+              
+              # Add the downloaded file to Git
+              git add "$asset_name"
 
-              # Prepare to upload the downloaded file to the GitHub release
-              release_id=$(echo "$release_info" | jq -r '.id')
-              upload_url=$(echo "$release_info" | jq -r '.upload_url' | sed "s/{?name,label}//")
-              echo "Uploading asset to release ID: $release_id"
+              # Commit the addition to a temporary branch for upload
+              git checkout -b upload-assets
+              git commit -m "Add asset: $asset_name"
 
-              # Uploading the asset directly to GitHub
-              curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-                -H "Content-Type: $(file -b --mime-type "$asset_name")" \
-                --data-binary @"$asset_name" \
-                "$upload_url?name=$asset_name" || {
-                  echo "Failed to upload $asset_name. Exiting."
-                  exit 1
-                }
+              # Push to Codeberg
+              git push --force codeberg upload-assets:master || {
+                echo "Failed to push to Codeberg. Exiting."
+                exit 1
+              }
+
+              # Switch back to the master branch and delete the temporary branch
+              git checkout master
+              git branch -D upload-assets
             else
               echo "Failed to download $asset_name. Exiting."
               exit 1

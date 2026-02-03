@@ -1,4 +1,4 @@
-name: Sync Releases to Codeberg
+name: Sync Old Releases to Codeberg
 
 on:
   workflow_dispatch:  # Trigger manually

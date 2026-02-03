@@ -67,10 +67,17 @@ jobs:
             if curl -L -O -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$asset_url"; then
               echo "$asset_name downloaded successfully."
 
-              # Check if the downloaded file exists
-              sleep 2  # Brief pause to ensure file is fully downloaded
+              # Check if the downloaded file exists in a loop
+              for i in {1..10}; do
+                if [[ -f "$asset_name" ]]; then
+                  break
+                fi
+                echo "Waiting for file $asset_name to appear..."
+                sleep 1
+              done
+
               if [[ ! -f "$asset_name" ]]; then
-                echo "File $asset_name does not exist. Skipping upload."
+                echo "File $asset_name does not exist after download. Skipping upload."
                 continue
               fi
 
@@ -115,6 +122,8 @@ jobs:
           git pull origin master  # Update local master branch to ensure it's up to date
           
           if [[ "$(git status --porcelain)" ]]; then
+            echo "No changes to merge from $branch_name into master."
+          else
             if git merge "$branch_name"; then
               echo "Merged $branch_name into master successfully."
               git push origin master
@@ -122,6 +131,4 @@ jobs:
               echo "Merge failed. Exiting."
               exit 1
             fi
-          else
-            echo "No changes to merge."
           fi

@@ -17,6 +17,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           fetch-depth: 0
+          lfs: false  # Disable Git LFS
 
       - name: Set up Codeberg Remote
         run: |

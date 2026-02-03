@@ -1,7 +1,7 @@
 name: Sync Releases to Codeberg
-on:
-  workflow_dispatch:  # Allows manual triggering of the workflow
 
+on:
+  workflow_dispatch:  # Only run on manual trigger
 
 permissions:
   contents: write

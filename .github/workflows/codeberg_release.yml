@@ -31,6 +31,14 @@ jobs:
           echo "tag_name=$(echo $latest_release | jq -r .tag_name)" >> $GITHUB_ENV
           echo "assets_url=$(echo $latest_release | jq -r .assets_url)" >> $GITHUB_ENV
 
+      - name: Pull changes from Codeberg
+        env:
+          CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
+        run: |
+          git remote add codeberg https://$CODEBERG_TOKEN@codeberg.org/unwanted9855/blended-strawberry.git
+          git fetch codeberg
+          git pull --rebase codeberg master
+
       - name: Download latest release assets
         run: |
           assets_url="${{ env.assets_url }}"
@@ -49,14 +57,6 @@ jobs:
       - name: Clean untracked files
         run: |
           git clean -fd
-
-      - name: Pull changes from Codeberg
-        env:
-          CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
-        run: |
-          git remote add codeberg https://$CODEBERG_TOKEN@codeberg.org/unwanted9855/blended-strawberry.git
-          git fetch codeberg
-          git pull --rebase codeberg master
 
       - name: Commit and Push
         run: |

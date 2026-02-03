@@ -36,7 +36,7 @@ jobs:
             release_id=$(echo "$line" | awk '{print $2}')
             echo "Processing release with tag $tag_name and ID $release_id."
 
-            # Check if release already exists on Codeberg
+            # Check if the release exists on Codeberg
             release=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/$tag_name")
 
             if [[ "$release" == *"Not Found"* ]]; then
@@ -49,14 +49,26 @@ jobs:
               release_id=$(echo "$release" | jq -r '.id')  # Extract release ID
             fi
 
-            # Check for assets for the current release
+            # Check for existing assets for the current release
             echo "Checking for existing assets for release tag $tag_name."
             existing_assets=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/$release_id/assets")
-            existing_asset_names=$(echo "$existing_assets" | jq -r '.[].name')
+            existing_asset_names=$(echo "$existing_assets" | jq -r '.[].name // empty')
 
-            # Download assets for the current release
+            if [ -z "$existing_asset_names" ]; then
+              echo "No existing assets found for release tag $tag_name."
+            else
+              echo "Existing assets: $existing_asset_names"
+            fi
+
+            # Get the assets for the current release from GitHub
             echo "Downloading assets for release $tag_name."
             assets=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/$release_id/assets")
+
+            if [[ $(echo "$assets" | jq 'type') != '"array"' ]]; then
+              echo "Error: Expected an array but got $(echo $assets | jq 'type'). Response: $assets"
+              exit 1
+            fi
+
             asset_count=$(echo "$assets" | jq '. | length')
 
             if [[ "$asset_count" -eq 0 ]]; then
@@ -85,32 +97,3 @@ jobs:
               fi
             done < assets.txt
 
-            # Upload Assets to Codeberg
-            for asset_name in *.dmg *.exe; do
-              if [[ -f "$asset_name" ]]; then
-                upload_url="https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/$release_id/assets?name=$asset_name"
-                echo "Uploading asset $asset_name to release for tag $tag_name."
-
-                response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/octet-stream" --data-binary @"$asset_name" "$upload_url" -w "HTTPSTATUS:%{http_code}")
-                http_code=$(echo "$response" | sed -e 's/HTTPSTATUS://')
-
-                echo "Upload response for $asset_name: $response"
-                
-                if [[ "$http_code" -ne 201 ]]; then
-                  echo "Failed to upload $asset_name. HTTP Status: $http_code. Response: $response"
-                  exit 1
-                fi
-                
-                echo "Uploaded $asset_name successfully."
-
-                # Optional: Add a slight delay to prevent rate limiting
-                sleep 2
-              else
-                echo "Asset $asset_name does not exist, skipping."
-              fi
-            done
-            
-            # Clean up downloaded files for the next release
-            rm -f *.dmg *.exe
-            
-          done < releases.txt

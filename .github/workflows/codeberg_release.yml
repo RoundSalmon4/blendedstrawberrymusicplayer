@@ -65,7 +65,6 @@ jobs:
 
       - name: Download and Upload Assets
         run: |
-          uploaded_assets=()  # Array to store links of uploaded assets
           while IFS= read -r asset_url; do
             if [ -z "$asset_url" ]; then
               echo "Empty URL, skipping."
@@ -79,13 +78,12 @@ jobs:
               
               # Check if the release exists on Codeberg for the current tag
               release=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${{ env.most_recent_tag }}")
-              
+
               if [[ "$release" == *"Not Found"* ]]; then
                 # Create a new release if it does not exist
                 echo "Creating release for tag ${env.most_recent_tag}."
                 release_data="{\"tag_name\":\"${{ env.most_recent_tag }}\",\"name\":\"Release ${{ env.most_recent_tag }}\",\"body\":\"Release for tag ${{ env.most_recent_tag }}\"}"
                 release_response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$release_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
-                
                 if [[ "$release_response" == *"\"id\":"* ]]; then
                   echo "Release created successfully."
                 else
@@ -94,30 +92,17 @@ jobs:
                 fi
               fi
 
-              # Get the upload URL for the assets
+              # Upload the asset to the release using curl to mimic the previous working method
               upload_url="https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/assets?name=$(basename "$asset_name")"
               echo "Uploading asset $asset_name to release for tag ${{ env.most_recent_tag }}."
-              response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: $(file -b --mime-type "$asset_name")" --data-binary @"$asset_name" "$upload_url")
-
-              # Check if the upload was successful
-              if [[ "$response" == *"\"id\":"* ]]; then
+              if curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: $(file -b --mime-type "$asset_name")" --data-binary @"$asset_name" "$upload_url"; then
                 echo "$asset_name uploaded successfully."
-                uploaded_assets+=($(echo "$response" | jq -r '.url'))  # Capture the uploaded asset URL
               else
-                echo "Failed to upload $asset_name. Response: $response. Exiting."
+                echo "Failed to upload $asset_name. Exiting."
                 exit 1
               fi
             else
               echo "Failed to download $asset_name. Exiting."
               exit 1
             fi
-
-            # Pause briefly
-            sleep 2
           done < assets.txt  # Read URLs from the generated file
-
-          # Output uploaded asset links
-          echo "Uploaded Assets:"
-          for asset_url in "${uploaded_assets[@]}"; do
-            echo "$asset_url"
-          done

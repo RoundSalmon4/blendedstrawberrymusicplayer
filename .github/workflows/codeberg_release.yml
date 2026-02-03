@@ -24,45 +24,49 @@ jobs:
           git config --global user.email "codebergsync.nzvel@simplelogin.com"
           git config --global user.name "RoundSalmon4"
 
-      - name: Get Latest Release Information
-        id: get_latest_release
+      - name: Get All Releases Information
+        id: get_all_releases
         run: |
-          latest_release=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest)
-          echo "Latest Release Response: $latest_release"  # Debug: Check the response
+          releases=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases)
+          echo "Releases Response: $releases"  # Debug: Check the response
+
+          # Extract the latest release
+          latest_release=$(echo "$releases" | jq -r '.[0]')  # Get the first release
+          echo "Latest Release: $latest_release"
 
           # Check if a release was found
-          if [[ "$latest_release" == *"Not Found"* ]]; then
+          if [[ "$latest_release" == "null" ]]; then
             echo "No releases found."
             exit 0  # Exit if no release is found
           fi
 
-          echo "tag_name=$(echo $latest_release | jq -r .tag_name)" >> $GITHUB_ENV
-          echo "assets_url=$(echo $latest_release | jq -r .assets_url)" >> $GITHUB_ENV
-
+          latest_release_id=$(echo "$latest_release" | jq -r .id)
+          echo "Latest Release ID: $latest_release_id"
+          echo "tag_name=$(echo "$latest_release" | jq -r .tag_name)" >> $GITHUB_ENV
 
       - name: Download Latest Release Assets
         run: |
-          latest_release_id=$(echo $latest_release | jq -r .id)
-          echo "Latest Release ID: $latest_release_id"
-
-          # Get all release information, including assets
-          release_info=$(curl -s -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/repos/${{ github.repository }}/releases/$latest_release_id")
-          echo "Release Info Response: $release_info"  # Debugging: Check the response structure
+          # Use the latest_release_id from the previous step
+          latest_release_id=$(echo "$latest_release" | jq -r .id)
+          assets_url="https://api.github.com/repos/${{ github.repository }}/releases/$latest_release_id/assets"
+          
+          # Fetch asset list and check the response
+          asset_list=$(curl -s -H "Authorization: token $GITHUB_TOKEN" -H "Accept: application/json" "$assets_url")
+          echo "Asset List Response: $asset_list"  # Debugging: Check the response structure
 
           # Check if assets are present
-          asset_list=$(echo "$release_info" | jq -r '.assets')
-          if [ "$asset_list" == "[]" ]; then
+          asset_array=$(echo "$asset_list" | jq -r '.assets')
+          if [ "$asset_array" == "[]" ]; then
             echo "No assets found for this release."
             exit 0  # Exit if no assets are found
           fi
 
           # Loop through the assets and download each one
-          echo "$release_info" | jq -r '.assets[].url' | while read -r asset_url; do
+          echo "$asset_list" | jq -r '.assets[].url' | while read -r asset_url; do
             asset_name=$(basename "$asset_url")
             echo "Downloading asset: $asset_name"
             curl -L -O -H "Authorization: token $GITHUB_TOKEN" "$asset_url"
           done
-
 
       - name: Add Downloaded Files to Git
         run: |

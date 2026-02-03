@@ -78,10 +78,12 @@ jobs:
               release_data="{\"tag_name\":\"${{ env.tag_name }}\",\"name\":\"Release ${{ env.tag_name }}\",\"body\":\"Release for tag ${{ env.tag_name }}\"}"
               release_response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$release_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
 
+              echo "Release creation response: $release_response"
+
               if [[ "$release_response" == *"\"id\":"* ]]; then
                 echo "Release created successfully."
               else
-                echo "Failed to create release."
+                echo "Failed to create release. Response: $release_response"
                 exit 1
               fi
             fi
@@ -94,5 +96,7 @@ jobs:
               echo "Failed to upload $asset_name. Response: $response"
               exit 1
             fi
+            echo "Upload response for $asset_name: $response"
             echo "Uploaded $asset_name successfully."
           done
+

@@ -56,7 +56,9 @@ jobs:
                 git push codeberg "$tag"
               fi
 
-              echo "Handling assets for tag: $tag"
+              # Download assets
+              echo "Downloading and verifying assets for tag: $tag"
+              asset_names=()
               for ((i=0; i<assets_count; i++)); do
                 asset_url=$(echo "$release" | jq -r ".assets[$i].url")
                 asset_name=$(echo "$release" | jq -r ".assets[$i].name")
@@ -66,15 +68,7 @@ jobs:
                   if curl -L -H "Authorization: Bearer ${GITHUB_TOKEN}" -o "$asset_name" "$asset_url"; then
                     mv "$asset_name" "releases/$asset_name"
                     echo "Asset $asset_name downloaded successfully."
-
-                    echo "Adding asset to Git..."
-                    git add "releases/$asset_name"
-
-                    echo "Committing asset $asset_name to Codeberg..."
-                    git commit -m "Add release asset $asset_name for $tag" || echo "No changes to commit."
-
-                    echo "Pushing asset to Codeberg..."
-                    git push codeberg master || echo "Failed to push asset $asset_name to Codeberg."
+                    asset_names+=("$asset_name")
                   else
                     echo "Failed to download asset: $asset_name"
                   fi
@@ -83,11 +77,32 @@ jobs:
                 fi
               done
 
-              # Verify assets in Codeberg
+              # Verify downloaded assets
+              echo "Verifying downloaded assets..."
+              for asset_name in "${asset_names[@]}"; do
+                if [ -f "releases/$asset_name" ]; then
+                  echo "Verified: Asset $asset_name exists locally."
+                else
+                  echo "Warning: Asset $asset_name was not downloaded successfully."
+                fi
+              done
+
+              # Upload assets to Codeberg
+              echo "Uploading assets to Codeberg..."
+              for asset_name in "${asset_names[@]}"; do
+                echo "Adding $asset_name to Git..."
+                git add "releases/$asset_name"
+
+                echo "Committing asset $asset_name to Codeberg..."
+                git commit -m "Add release asset $asset_name for $tag" || echo "No changes to commit."
+
+                echo "Pushing asset to Codeberg..."
+                git push codeberg master || echo "Failed to push asset $asset_name to Codeberg."
+              done
+
+              # Verify uploaded assets in Codeberg
               echo "Verifying uploaded assets in Codeberg..."
-              for ((i=0; i<assets_count; i++)); do
-                asset_name=$(echo "$release" | jq -r ".assets[$i].name")
-                # This should ideally be a different endpoint to check for assets
+              for asset_name in "${asset_names[@]}"; do
                 if curl --silent --header "Authorization: Bearer ${CODEBERG_TOKEN}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/assets" | grep -q "$asset_name"; then
                   echo "Asset $asset_name is confirmed uploaded to Codeberg."
                 else
@@ -98,4 +113,3 @@ jobs:
           else
             echo "No releases found."
           fi
-

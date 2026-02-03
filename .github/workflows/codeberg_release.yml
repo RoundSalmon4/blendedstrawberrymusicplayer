@@ -49,7 +49,7 @@ jobs:
       - name: Get Release Information for Most Recent Tag
         run: |
           release_info=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ env.most_recent_tag }}")
-          echo "Release Info Response: $release_info"  # Print the full JSON response for debugging
+          echo "Release Info Response: $release_info"  # Debug: Print the full JSON response for debugging
 
           # Check for errors
           if [[ "$release_info" == *"Not Found"* ]]; then
@@ -69,7 +69,15 @@ jobs:
             exit 0
           fi
 
-          # Download each asset and push to Codeberg immediately
+      - name: Pull Changes from Codeberg
+        env:
+          CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
+        run: |
+          # Add the Codeberg remote only once
+          git remote add codeberg https://$CODEBERG_TOKEN@codeberg.org/unwanted9855/blended-strawberry.git || echo "Remote 'codeberg' already exists."
+
+      - name: Download Assets
+        run: |
           echo "$asset_list" | while read -r asset_url; do
             if [ -z "$asset_url" ]; then
               echo "Empty URL, skipping."
@@ -83,55 +91,20 @@ jobs:
               
               # Add the downloaded file to Git
               git add "$asset_name"
-              
+
               # Commit the addition
               git commit -m "Add asset: $asset_name"
 
               # Push to Codeberg
-              git push --force codeberg master
+              git push --force codeberg master || {
+                echo "Failed to push to Codeberg. Exiting."
+                exit 1
+              }
             else
               echo "Failed to download $asset_name. Exiting."
               exit 1  # Stop the action on failure
             fi
-    
-            # Pause for a brief moment (e.g., 2 seconds)
+
+            # Pause for a moment (e.g., 2 seconds)
             sleep 2
           done
-
-
-      - name: Download Each Asset
-        run: |
-          # Download each asset
-          echo "$asset_list" | while read -r asset_url; do
-            asset_name=$(basename "$asset_url")
-            echo "Downloading asset: $asset_name"
-            curl -L -O -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$asset_url" && \
-            echo "$asset_name downloaded successfully." || \
-            echo "Failed to download $asset_name."
-
-            # Pause for a brief moment (e.g., 2 seconds)
-            sleep 2
-          done
-
-      - name: List Downloaded Files
-        run: |
-          echo "Current directory contents:"
-          ls -la # Lists all files and directories
-
-      - name: Add Downloaded Files to Git
-        run: |
-          git add . # This adds all downloaded files in the current directory
-          echo "Files added to git staging area."
-
-
-      - name: Pull Changes from Codeberg
-        env:
-          CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
-        run: |
-          git remote add codeberg https://$CODEBERG_TOKEN@codeberg.org/unwanted9855/blended-strawberry.git
-          git fetch codeberg
-          git merge codeberg/master --allow-unrelated-histories || true
-
-      - name: Force Push to Codeberg
-        run: |
-          git push --force codeberg master

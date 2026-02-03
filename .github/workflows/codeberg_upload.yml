@@ -1,4 +1,4 @@
-name: Sync assets to Codeberg
+name: Sync to Codeberg
 
 on:
   push:
@@ -20,15 +20,6 @@ jobs:
           git config --global user.email "codebergsync.nzvel@simplelogin.com"
           git config --global user.name "RoundSalmon4"
 
-      - name: Push to Codeberg
-        env:
-          CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
-        run: |
-          git remote add codeberg https://$CODEBERG_TOKEN@codeberg.org/unwanted9855/blended-strawberry.git
-          git fetch codeberg
-          git merge codeberg/master --allow-unrelated-histories || true
-          git push codeberg master
-
       - name: Sync Releases to Codeberg
         env:
           CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
@@ -42,84 +33,63 @@ jobs:
 
           if [ "$(echo "$releases" | jq '. | length')" -gt 0 ]; then
             echo "Processing releases..."
+
+            # Loop through each release
             echo "$releases" | jq -c '.[]' | while IFS= read -r release; do
               tag=$(echo "$release" | jq -r '.tag_name')
               assets_count=$(echo "$release" | jq '.assets | length')
 
-              # Create and push the tag if it doesn't exist
-              if ! git ls-remote --tags codeberg | grep -q "$tag"; then
-                if ! git tag | grep -q "$tag"; then
-                  echo "Creating tag: $tag"
-                  git tag "$tag"
-                fi
-                echo "Pushing tag $tag to Codeberg..."
-                git push codeberg "$tag"
-              fi
-
-              # Download assets
-              echo "Downloading assets for tag: $tag"
-              asset_names=()
+              # Verify if files are already uploaded to Codeberg
               for ((i=0; i<assets_count; i++)); do
-                asset_url=$(echo "$release" | jq -r ".assets[$i].url")
                 asset_name=$(echo "$release" | jq -r ".assets[$i].name")
 
-                if [ -n "$asset_url" ] && [ -n "$asset_name" ]; then
+                echo "Checking if $asset_name exists on Codeberg..."
+                if curl --silent --header "Authorization: Bearer ${CODEBERG_TOKEN}" "https://api.codeberg.org/repos/unwanted9855/blended-strawberry/releases/assets" | grep -q "$asset_name"; then
+                  echo "$asset_name already exists on Codeberg, skipping."
+                  continue
+                fi
+
+                # Check if the asset is already downloaded locally
+                if [ -f "releases/$asset_name" ]; then
+                  echo "$asset_name is already available locally, will attempt to upload."
+                else
+                  # Download the asset
+                  asset_url=$(echo "$release" | jq -r ".assets[$i].url")
                   echo "Downloading asset: $asset_name from $asset_url"
                   if curl -L -H "Authorization: Bearer ${GITHUB_TOKEN}" -o "$asset_name" "$asset_url"; then
                     mv "$asset_name" "releases/$asset_name"
                     echo "Asset $asset_name downloaded successfully."
-                    asset_names+=("$asset_name")
                   else
                     echo "Failed to download asset: $asset_name"
+                    continue  # Skip to next asset if download fails
                   fi
+                fi
+
+                # Upload the asset to Codeberg
+                echo "Uploading $asset_name to Codeberg..."
+                git add "releases/$asset_name"
+                if git commit -m "Add release asset $asset_name for $tag"; then
+                  echo "Successfully committed $asset_name."
                 else
-                  echo "Asset URL or Name is empty, skipping."
+                  echo "No changes to commit for $asset_name. It may already exist."
+                fi
+
+                echo "Pushing asset to Codeberg..."
+                if git push codeberg master; then
+                  echo "Successfully pushed $asset_name to Codeberg."
+                else
+                  echo "Failed to push $asset_name to Codeberg."
+                  continue  # Skip verification if push fails
+                fi
+
+                # Verify uploaded asset
+                echo "Verifying $asset_name upload on Codeberg..."
+                if curl --silent --header "Authorization: Bearer ${CODEBERG_TOKEN}" "https://api.codeberg.org/repos/unwanted9855/blended-strawberry/releases/assets" | grep -q "$asset_name"; then
+                  echo "$asset_name confirmed uploaded to Codeberg."
+                else
+                  echo "Warning: $asset_name was not found in Codeberg after upload."
                 fi
               done
-
-              # Verify downloaded assets
-              echo "Verifying downloaded assets..."
-              all_downloaded=1  # Flag to track download success
-              for asset_name in "${asset_names[@]}"; do
-                if [ -f "releases/$asset_name" ]; then
-                  echo "Verified: Asset $asset_name exists locally."
-                else
-                  echo "Warning: Asset $asset_name was not downloaded successfully."
-                  all_downloaded=0
-                fi
-              done
-
-              # Only upload if all assets are successfully downloaded
-              if [ $all_downloaded -eq 1 ]; then
-                echo "Uploading assets to Codeberg..."
-                for asset_name in "${asset_names[@]}"; do
-                  echo "Adding $asset_name to Git..."
-                  git add "releases/$asset_name"
-
-                  if git commit -m "Add release asset $asset_name for $tag"; then
-                    echo "Successfully committed $asset_name."
-                  else
-                    echo "No changes to commit for $asset_name. It may already exist."
-                  fi
-
-                  echo "Pushing asset to Codeberg..."
-                  if git push codeberg master; then
-                    echo "Successfully pushed $asset_name to Codeberg."
-                  else
-                    echo "Failed to push $asset_name to Codeberg."
-                  fi
-
-                  # Verify uploaded assets in Codeberg
-                  echo "Verifying uploaded assets in Codeberg..."
-                  if curl --silent --header "Authorization: Bearer ${CODEBERG_TOKEN}" "https://api.codeberg.org/repos/unwanted9855/blended-strawberry/releases/assets" | grep -q "$asset_name"; then
-                    echo "Asset $asset_name is confirmed uploaded to Codeberg."
-                  else
-                    echo "Warning: Asset $asset_name was not found in Codeberg."
-                  fi
-                done
-              else
-                echo "Skipping upload due to incomplete downloads."
-              fi
             done
           else
             echo "No releases found."

@@ -56,7 +56,7 @@ jobs:
                 git push codeberg "$tag"
               fi
 
-              # Download assets phase
+              # Download assets
               echo "Downloading assets for tag: $tag"
               asset_names=()
               for ((i=0; i<assets_count; i++)); do
@@ -107,7 +107,7 @@ jobs:
                 # Verify uploaded assets in Codeberg
                 echo "Verifying uploaded assets in Codeberg..."
                 for asset_name in "${asset_names[@]}"; do
-                  if curl --silent --header "Authorization: Bearer ${CODEBERG_TOKEN}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/assets" | grep -q "$asset_name"; then
+                  if curl --silent --header "Authorization: Bearer ${CODEBERG_TOKEN}" "https://api.codeberg.org/repos/unwanted9855/blended-strawberry/releases/assets" | grep -q "$asset_name"; then
                     echo "Asset $asset_name is confirmed uploaded to Codeberg."
                   else
                     echo "Warning: Asset $asset_name was not found in Codeberg."

@@ -1,4 +1,4 @@
-name: Sync to Codeberg
+name: Sync to Codeberg2
 
 on:
   push:

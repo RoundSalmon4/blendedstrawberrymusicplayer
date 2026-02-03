@@ -41,15 +41,8 @@ jobs:
           while IFS= read -r line; do
             asset_name=$(echo "$line" | awk '{print $1}')
             asset_url=$(echo "$line" | awk '{print $2}')
-            if [ -z "$asset_url" ]; then
-              echo "Empty URL, skipping."
-              continue
-            fi
-            echo "Downloading asset from: $asset_url"
-            if ! curl -L -O "$asset_url"; then
-              echo "Failed to download $asset_name. Exiting."
-              exit 1
-            fi
+            echo "Downloading asset: $asset_name from: $asset_url"
+            curl -L -O "$asset_url" || { echo "Failed to download $asset_name. Exiting."; exit 1; }
             echo "$asset_name downloaded successfully."
           done < assets.txt
 
@@ -60,36 +53,27 @@ jobs:
 
       - name: Upload Assets to Codeberg
         run: |
-          echo "Checking for release with tag ${{ env.tag_name }}."
           release=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${{ env.tag_name }}")
-
           if [[ "$release" == *"Not Found"* ]]; then
-              echo "Release with tag ${{ env.tag_name }} does not exist. Creating a new release."
+              echo "Creating new release for tag ${{ env.tag_name }}."
               release_data="{\"tag_name\":\"${{ env.tag_name }}\",\"name\":\"Release ${{ env.tag_name }}\",\"body\":\"Release for tag ${{ env.tag_name }}\"}"
               release_response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$release_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
-              echo "Release creation response: $release_response"
           else
-              echo "Release for tag ${{ env.tag_name }} found."
+              echo "Release for tag ${{ env.tag_name }} found. Proceeding with uploads."
           fi
 
           for asset_name in *.dmg *.exe; do
-            if [[ ! -f "$asset_name" ]]; then
+            if [[ -f "$asset_name" ]]; then
+              upload_url="https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/assets?name=$asset_name"
+              response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: $(file -b --mime-type "$asset_name")" --data-binary @"$asset_name" "$upload_url")
+              echo "Upload response for $asset_name: $response"
+              if [[ "$response" == *"\"id\":"* ]]; then
+                echo "Uploaded $asset_name successfully."
+              else
+                echo "Upload of $asset_name failed. Response: $response"
+                exit 1
+              fi
+            else
               echo "Asset $asset_name does not exist, skipping."
-              continue
             fi
-
-            echo "Uploading asset $asset_name to release for tag ${{ env.tag_name }}."
-            upload_url="https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/assets?name=$asset_name"
-
-            if ! response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: $(file -b --mime-type "$asset_name")" --data-binary @"$asset_name" "$upload_url"); then
-              echo "Failed to upload $asset_name. Response: $response"
-              exit 1
-            fi
-            
-            echo "Upload response for $asset_name: $response"
-            if [[ "$response" != *"\"id\":"* ]]; then
-              echo "Upload of $asset_name failed or was not successful. Response: $response"
-              exit 1
-            fi
-
-            echo "Uploaded $asset_name successfully."
+          done

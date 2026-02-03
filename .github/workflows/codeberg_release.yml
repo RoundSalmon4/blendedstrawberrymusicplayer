@@ -18,6 +18,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Clean previous downloads and uncommitted changes
+        run: |
+          echo "Cleaning up previous downloads and uncommitted changes..."
+          rm -f *.dmg *.exe  # Remove previous downloads
+          git checkout .      # Revert any uncommitted changes
+
       - name: Get Latest Release Info
         id: get_release
         run: |
@@ -69,16 +75,16 @@ jobs:
 
               # Check if the downloaded file exists in a loop
               for i in {1..10}; do
+                sleep 1  # Wait before checking
                 if [[ -f "$asset_name" ]]; then
                   break
                 fi
                 echo "Waiting for file $asset_name to appear..."
-                sleep 1
               done
 
               if [[ ! -f "$asset_name" ]]; then
-                echo "File $asset_name does not exist after download. Skipping upload."
-                continue
+                echo "File $asset_name does not exist after download. Exiting."
+                exit 1
               fi
 
               # Check if the release exists on Codeberg for the current tag

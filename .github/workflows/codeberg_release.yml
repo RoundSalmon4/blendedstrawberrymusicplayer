@@ -6,6 +6,12 @@ on:
       - master
   workflow_dispatch:
 
+permissions:
+  contents: write  # Allows write access to repository contents
+  issues: write    # Allows write access to issues (if needed)
+  pull-requests: write  # Allows write access to pull requests (if needed)
+  deployments: write  # Allows write access to deployments (if needed)
+
 jobs:
   sync:
     runs-on: ubuntu-latest
@@ -27,7 +33,7 @@ jobs:
       - name: Get All Tags
         id: get_tags
         run: |
-          tags=$(curl -s -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/repos/${{ github.repository }}/tags")
+          tags=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/tags")
           echo "Tags Response: $tags"  # Debug: Check the response
 
           # Get the most recent tag
@@ -42,7 +48,7 @@ jobs:
 
       - name: Get Release Information for Most Recent Tag
         run: |
-          release_info=$(curl -s -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ env.most_recent_tag }}")
+          release_info=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ env.most_recent_tag }}")
           echo "Release Info Response: $release_info"  # Debug: Check the response
 
           # Check for errors
@@ -62,7 +68,7 @@ jobs:
           echo "$asset_list" | while read -r asset_url; do
             asset_name=$(basename "$asset_url")
             echo "Downloading asset: $asset_name"
-            curl -L -O -H "Authorization: token $GITHUB_TOKEN" "$asset_url"
+            curl -L -O -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$asset_url"
           done
 
       - name: Add Downloaded Files to Git

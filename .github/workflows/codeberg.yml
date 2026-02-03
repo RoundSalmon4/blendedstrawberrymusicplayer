@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout the repository with full history
-        uses: actions/checkout@v6
+        uses: actions/checkout@v2
         with:
           fetch-depth: 0  # Fetch all history for all branches and tags
 
@@ -24,7 +24,7 @@ jobs:
         env:
           CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
         run: |
-          git remote add codeberg $CODEBERG_TOKEN@codeberg.org/unwanted9855/blended-strawberry.git
+          git remote add codeberg https://$CODEBERG_TOKEN@codeberg.org/unwanted9855/blended-strawberry.git
           git fetch codeberg
           git merge codeberg/master --allow-unrelated-histories || true
           git push codeberg master

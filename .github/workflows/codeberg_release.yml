@@ -43,7 +43,9 @@ jobs:
         id: create_branch
         run: |
           branch_name="upload-assets-${{ github.run_id }}"
+          echo "Creating new branch: $branch_name"
           git checkout -b "$branch_name"
+          echo "branch_name=$branch_name" >> $GITHUB_ENV  # Save branch name to environment variable for later use.
 
       - name: Check if Tag Exists on Codeberg
         id: check_tag
@@ -142,11 +144,11 @@ jobs:
           git checkout master
           git pull origin master  # Update local master branch to ensure it's up to date
 
-          echo "Merging branch: $branch_name"
-          git merge "$branch_name" || {
+          echo "Merging branch: ${{ env.branch_name }}"
+          if ! git merge "${{ env.branch_name }}"; then
             echo "Merge failed. Check if there is anything to merge."
             exit 1
-          }
+          fi
 
-          echo "Merged $branch_name into master successfully."
+          echo "Merged ${{ env.branch_name }} into master successfully."
           git push origin master

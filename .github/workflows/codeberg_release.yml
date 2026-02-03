@@ -57,8 +57,8 @@ jobs:
             exit 1
           fi
 
-          # Extract asset URLs
-          asset_list=$(echo "$release_info" | jq -r '.assets[].url // empty')
+          # Extract asset URLs using browser_download_url
+          asset_list=$(echo "$release_info" | jq -r '.assets[].browser_download_url // empty')
           if [ -z "$asset_list" ]; then
             echo "No assets found for the tag ${most_recent_tag}."
             exit 0
@@ -70,6 +70,7 @@ jobs:
             echo "Downloading asset: $asset_name"
             curl -L -O -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$asset_url"
           done
+
 
       - name: Add Downloaded Files to Git
         run: |

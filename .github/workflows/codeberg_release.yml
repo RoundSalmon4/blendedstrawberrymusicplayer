@@ -48,8 +48,8 @@ jobs:
         run: |
           release_info=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ env.most_recent_tag }}")
           if [[ "$release_info" == *"Not Found"* ]]; then
-            echo "Error: Release not found for tag ${env.most_recent_tag}."
-            exit 1
+            echo "Creating a new release for tag ${env.most_recent_tag}."
+            release_info=$(curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -d "{\"tag_name\": \"${{ env.most_recent_tag }}\", \"name\": \"Release ${{ env.most_recent_tag }}\"}" "https://api.github.com/repos/${{ github.repository }}/releases")
           fi
 
           asset_list=$(echo "$release_info" | jq -r '.assets[].browser_download_url // empty')
@@ -68,7 +68,7 @@ jobs:
         run: |
           git remote add codeberg https://$CODEBERG_TOKEN@codeberg.org/unwanted9855/blended-strawberry.git || echo "Remote 'codeberg' already exists."
 
-      - name: Download Assets
+      - name: Download and Upload Assets
         run: |
           while IFS= read -r asset_url; do
             if [ -z "$asset_url" ]; then
@@ -81,20 +81,15 @@ jobs:
             if curl -L -O -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$asset_url"; then
               echo "$asset_name downloaded successfully."
               
-              # Add the downloaded file to Git
-              git add "$asset_name"
-
-              # Commit the addition
-              git commit -m "Add asset: $asset_name"
-
-              # Push to Codeberg
-              git push --force codeberg master || {
-                echo "Failed to push to Codeberg. Exiting."
+              # Upload the asset to the appropriate release on Codeberg
+              echo "Uploading $asset_name to Codeberg..."
+              curl -X POST -H "Authorization: token $CODEBERG_TOKEN" -H "Content-Type: application/octet-stream" --data-binary @"$asset_name" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/assets?name=$asset_name" || {
+                echo "Failed to upload $asset_name. Exiting."
                 exit 1
               }
             else
               echo "Failed to download $asset_name. Exiting."
-              exit 1  # Stop the action on failure
+              exit 1
             fi
 
             # Pause for a moment (e.g., 2 seconds)

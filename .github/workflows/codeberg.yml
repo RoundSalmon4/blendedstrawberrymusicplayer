@@ -41,10 +41,10 @@ jobs:
           releases=$(curl --silent "https://api.github.com/repos/${{ github.repository }}/releases")
 
           # Check if releases were returned
-          if [ "$releases" != "[]" ]; then
+          if [ "$(echo "$releases" | jq '. | length')" -gt 0 ]; then
             echo "$releases" | jq -c '.[]' | while read release; do
               tag=$(echo "$release" | jq -r '.tag_name')
-              assets=$(echo "$release" | jq -c '.assets[]?')  # '?' to ignore null assets
+              assets=$(echo "$release" | jq -c '.assets[]?')
 
               # Check if the tag exists on Codeberg
               if ! git ls-remote --tags codeberg | grep -q "$tag"; then
@@ -57,9 +57,9 @@ jobs:
                 git push codeberg "$tag"
               fi
 
-              # Handle release assets
-              if [ ! -z "$assets" ]; then
-                echo "$assets" | while read asset; do
+              # Handle release assets only if they exist
+              echo "$assets" | while read asset; do
+                if [ -n "$asset" ]; then  # Check if the asset is not empty
                   asset_name=$(echo "$asset" | jq -r '.name')
                   asset_url=$(echo "$asset" | jq -r '.url')
 
@@ -75,8 +75,8 @@ jobs:
                     git commit -m "Add release asset $asset_name for $tag"
                     git push codeberg master
                   fi
-                done
-              fi
+                fi
+              done
             done
           else
             echo "No releases found."

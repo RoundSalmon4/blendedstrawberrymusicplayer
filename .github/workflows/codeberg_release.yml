@@ -24,39 +24,37 @@ jobs:
           git config --global user.email "codebergsync.nzvel@simplelogin.com"
           git config --global user.name "RoundSalmon4"
 
-      - name: Get latest release information
+      - name: Get Latest Release Information
         id: get_latest_release
         run: |
           latest_release=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest)
           echo "tag_name=$(echo $latest_release | jq -r .tag_name)" >> $GITHUB_ENV
           echo "assets_url=$(echo $latest_release | jq -r .assets_url)" >> $GITHUB_ENV
 
-      - name: Pull changes from Codeberg
+      - name: Download Latest Release Assets
+        run: |
+          latest_release_id=$(echo $latest_release | jq -r .id)
+          assets_url="https://api.github.com/repos/${{ github.repository }}/releases/$latest_release_id/assets"
+          asset_list=$(curl -s -H "Authorization: token $GITHUB_TOKEN" -H "Accept: application/json" "$assets_url")
+
+          # Loop through the assets and download each one
+          echo "$asset_list" | jq -r '.[].url' | while read -r asset_url; do
+            asset_name=$(basename "$asset_url")
+            echo "Downloading asset: $asset_name"
+            curl -L -O -H "Authorization: token $GITHUB_TOKEN" "$asset_url"
+          done
+
+      - name: Add Downloaded Files to Git
+        run: |
+          git add .
+
+      - name: Pull Changes from Codeberg
         env:
           CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
         run: |
           git remote add codeberg https://$CODEBERG_TOKEN@codeberg.org/unwanted9855/blended-strawberry.git
           git fetch codeberg
           git pull --rebase codeberg master
-
-      - name: Download latest release assets
-        run: |
-          assets_url="${{ env.assets_url }}"
-          assets=$(curl -s -H "Accept: application/vnd.github.v3.raw" "$assets_url")
-          echo "$assets" | jq -r '.[].url' > asset_urls.txt
-
-          # Download each asset using the token
-          while read -r asset_url; do
-            curl -L -O -H "Authorization: token $GITHUB_TOKEN" "$asset_url"
-          done < asset_urls.txt
-
-      - name: Add downloaded files to Git
-        run: |
-          git add .
-
-      - name: Clean untracked files
-        run: |
-          git clean -fd
 
       - name: Commit and Push
         run: |

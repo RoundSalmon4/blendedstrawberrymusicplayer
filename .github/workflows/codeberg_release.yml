@@ -68,9 +68,14 @@ jobs:
           echo "$asset_list" | while read -r asset_url; do
             asset_name=$(basename "$asset_url")
             echo "Downloading asset: $asset_name"
-            curl -L -O -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$asset_url"
-          done
+            # Download and ensure it completes before moving on
+            curl -L -O -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$asset_url" && \
+            echo "$asset_name downloaded successfully." || \
+            echo "Failed to download $asset_name."
 
+            # Pause for a brief moment (e.g., 2 seconds)
+            sleep 2
+          done
 
       - name: Add Downloaded Files to Git
         run: |

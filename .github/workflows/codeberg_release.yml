@@ -69,7 +69,7 @@ jobs:
               continue
             fi
 
-            echo "Downloading asset: $asset_name"
+            echo "Downloading asset from: $asset_url"
             if curl -L -O -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$asset_url"; then
               echo "$asset_name downloaded successfully."
 

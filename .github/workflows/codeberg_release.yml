@@ -36,7 +36,11 @@ jobs:
           for url in $assets_url; do
             asset_name=$(basename "$url")
             echo "Downloading asset: $asset_name"
-            curl -L -O -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$url"
+            if ! curl -L -O -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$url"; then
+              echo "Failed to download $asset_name. Exiting."
+              exit 1
+            fi
+            echo "$asset_name downloaded successfully."
           done
 
       - name: Create New Branch on Codeberg
@@ -78,9 +82,7 @@ jobs:
 
       - name: Upload Assets to New Branch
         run: |
-          # Upload each asset individually
-          for url in $(echo "$latest_release" | jq -r '.assets[].url'); do
-            asset_name=$(basename "$url")
+          for asset_name in *.zip; do  # Ensure the assets downloaded are handled correctly.
             upload_url="https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/assets?name=$asset_name"
             echo "Uploading asset $asset_name."
             if ! curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: $(file -b --mime-type "$asset_name")" --data-binary @"$asset_name" "$upload_url"; then
@@ -93,5 +95,10 @@ jobs:
       - name: Merge Branch with Master on Codeberg
         run: |
           git checkout master
-          git merge "$branch_name"
-          git push origin master
+          git pull origin master  # Update local master branch to ensure it's up to date
+          if git merge "$branch_name"; then
+            echo "Merged $branch_name into master successfully."
+            git push origin master
+          else
+            echo "No changes to merge."
+          fi

@@ -34,45 +34,60 @@ jobs:
           CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Create releases directory if it doesn't exist
+          echo "Creating releases directory..."
           mkdir -p releases
 
-          # Fetch releases from GitHub
+          echo "Fetching releases from GitHub..."
           releases=$(curl --silent "https://api.github.com/repos/${{ github.repository }}/releases")
 
-          # Check if releases were returned
           if [ "$(echo "$releases" | jq '. | length')" -gt 0 ]; then
+            echo "Processing releases..."
             echo "$releases" | jq -c '.[]' | while IFS= read -r release; do
               tag=$(echo "$release" | jq -r '.tag_name')
               assets_count=$(echo "$release" | jq '.assets | length')
 
-              # Check if the tag exists on Codeberg
               if ! git ls-remote --tags codeberg | grep -q "$tag"; then
                 if ! git tag | grep -q "$tag"; then
+                  echo "Creating tag: $tag"
                   git tag "$tag"
                 fi
+                echo "Pushing tag $tag to Codeberg..."
                 git push codeberg "$tag"
               fi
 
-              # Download assets if they exist
+              echo "Handling assets for tag: $tag"
               for ((i=0; i<assets_count; i++)); do
                 asset_url=$(echo "$release" | jq -r ".assets[$i].url")
                 asset_name=$(echo "$release" | jq -r ".assets[$i].name")
 
-                # Ensure the URL is correct
                 if [ -n "$asset_url" ] && [ -n "$asset_name" ]; then
-                  # Download asset with proper authorization
                   echo "Downloading asset: $asset_name from $asset_url"
                   if curl -L -H "Authorization: Bearer ${GITHUB_TOKEN}" -o "$asset_name" "$asset_url"; then
                     mv "$asset_name" "releases/$asset_name"
+                    echo "Asset $asset_name downloaded successfully."
+
+                    echo "Adding and committing asset to Codeberg..."
                     git add "releases/$asset_name"
                     git commit -m "Add release asset $asset_name for $tag" || echo "No changes to commit."
-                    git push codeberg master || echo "Failed to push to Codeberg."
+
+                    echo "Pushing asset $asset_name to Codeberg..."
+                    git push codeberg master || echo "Failed to push asset $asset_name to Codeberg."
                   else
                     echo "Failed to download asset: $asset_name"
                   fi
                 else
                   echo "Asset URL or Name is empty, skipping."
+                fi
+              done
+
+              # Verify assets in Codeberg
+              echo "Verifying uploaded assets in Codeberg..."
+              for ((i=0; i<assets_count; i++)); do
+                asset_name=$(echo "$release" | jq -r ".assets[$i].name")
+                if git ls-remote --heads codeberg | grep -q "$asset_name"; then
+                  echo "Asset $asset_name is confirmed uploaded to Codeberg."
+                else
+                  echo "Warning: Asset $asset_name was not found in Codeberg."
                 fi
               done
             done

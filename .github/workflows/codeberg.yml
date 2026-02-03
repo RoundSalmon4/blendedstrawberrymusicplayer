@@ -46,6 +46,7 @@ jobs:
               tag=$(echo "$release" | jq -r '.tag_name')
               assets_count=$(echo "$release" | jq '.assets | length')
 
+              # Create and push the tag if it doesn't exist
               if ! git ls-remote --tags codeberg | grep -q "$tag"; then
                 if ! git tag | grep -q "$tag"; then
                   echo "Creating tag: $tag"
@@ -66,11 +67,13 @@ jobs:
                     mv "$asset_name" "releases/$asset_name"
                     echo "Asset $asset_name downloaded successfully."
 
-                    echo "Adding and committing asset to Codeberg..."
+                    echo "Adding asset to Git..."
                     git add "releases/$asset_name"
+
+                    echo "Committing asset $asset_name to Codeberg..."
                     git commit -m "Add release asset $asset_name for $tag" || echo "No changes to commit."
 
-                    echo "Pushing asset $asset_name to Codeberg..."
+                    echo "Pushing asset to Codeberg..."
                     git push codeberg master || echo "Failed to push asset $asset_name to Codeberg."
                   else
                     echo "Failed to download asset: $asset_name"
@@ -84,7 +87,8 @@ jobs:
               echo "Verifying uploaded assets in Codeberg..."
               for ((i=0; i<assets_count; i++)); do
                 asset_name=$(echo "$release" | jq -r ".assets[$i].name")
-                if git ls-remote --heads codeberg | grep -q "$asset_name"; then
+                # This should ideally be a different endpoint to check for assets
+                if curl --silent --header "Authorization: Bearer ${CODEBERG_TOKEN}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/assets" | grep -q "$asset_name"; then
                   echo "Asset $asset_name is confirmed uploaded to Codeberg."
                 else
                   echo "Warning: Asset $asset_name was not found in Codeberg."
@@ -94,3 +98,4 @@ jobs:
           else
             echo "No releases found."
           fi
+

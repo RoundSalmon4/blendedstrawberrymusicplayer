@@ -78,7 +78,9 @@ jobs:
 
       - name: Upload Assets to New Branch
         run: |
-          for asset_name in *.zip; do  # Adjust the pattern based on your asset types
+          # Upload each asset individually
+          for url in $(echo "$latest_release" | jq -r '.assets[].url'); do
+            asset_name=$(basename "$url")
             upload_url="https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/assets?name=$asset_name"
             echo "Uploading asset $asset_name."
             if ! curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: $(file -b --mime-type "$asset_name")" --data-binary @"$asset_name" "$upload_url"; then

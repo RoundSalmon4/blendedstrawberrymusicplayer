@@ -34,7 +34,6 @@ jobs:
           fi
           echo "Latest release tag: $tag_name"
           echo "tag_name=$tag_name" >> $GITHUB_ENV
-          
           echo "$latest_release" | jq -r '.assets[] | "\(.name) \(.browser_download_url)"' > assets.txt
 
       - name: Download Assets
@@ -64,7 +63,7 @@ jobs:
       - name: Upload Assets to Codeberg
         run: |
           echo "Checking for release with tag ${{ env.tag_name }}."
-          release=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${{ env.tag_name }}") 
+          release=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${{ env.tag_name }}")
 
           if [[ "$release" == *"Not Found"* ]]; then
               echo "Release with tag ${{ env.tag_name }} does not exist. Creating a new release."

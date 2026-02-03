@@ -75,7 +75,7 @@ jobs:
             echo "Downloading asset: $asset_name"
             if curl -L -O -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$asset_url"; then
               echo "$asset_name downloaded successfully."
-
+              
               # Check if the release exists on Codeberg for the current tag
               release=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${{ env.most_recent_tag }}")
               if [[ "$release" == *"Not Found"* ]]; then
@@ -92,10 +92,10 @@ jobs:
               fi
 
               # Upload the asset to the release
-              echo "Uploading asset ${asset_name} to release for tag ${env.most_recent_tag}."
-              upload_url="https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/assets?name=${asset_name}"
+              echo "Uploading asset $asset_name to release for tag ${{ env.most_recent_tag }}."
+              upload_url="https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/assets?name=$(basename "$asset_name")"
               if ! curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: $(file -b --mime-type "$asset_name")" --data-binary @"$asset_name" "$upload_url"; then
-                echo "Failed to upload ${asset_name}. Exiting."
+                echo "Failed to upload $asset_name. Exiting."
                 exit 1
               fi
             else

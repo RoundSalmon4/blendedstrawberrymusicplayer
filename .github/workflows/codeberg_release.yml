@@ -86,12 +86,12 @@ jobs:
             fi
             echo "$asset_name downloaded successfully."
 
-            # Extract the version from the asset filename
+            # Extract tag name from the asset filename (e.g., strawberry-1.2.18-arm64.dmg -> 1.2.18)
             tag_name=$(echo "$asset_name" | grep -oP '\d+\.\d+\.\d+')
             echo "Using extracted tag name: $tag_name"
 
-            # Create a new release for the assets using the extracted tag name
-            release_data="{\"tag_name\":\"$tag_name\",\"name\":\"$tag_name\",\"body\":\"Release for tag $tag_name\"}"  # Using tag_name for both tag and name
+            # Create a new release using the extracted tag name
+            release_data="{\"tag_name\":\"$tag_name\",\"name\":\"$tag_name\",\"body\":\"Release for tag $tag_name\"}"
             echo "Release Data: $release_data"  # Debug output
 
             # Make the API call to create the release
@@ -116,6 +116,7 @@ jobs:
             echo "$asset_name uploaded successfully."
 
           done < assets.txt  # Read URLs from the generated file
+
 
       - name: Merge Back to Master
         run: |

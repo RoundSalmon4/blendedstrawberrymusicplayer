@@ -7,10 +7,10 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write  # Allows write access to repository contents
-  issues: write    # Allows write access to issues (if needed)
-  pull-requests: write  # Allows write access to pull requests (if needed)
-  deployments: write  # Allows write access to deployments (if needed)
+  contents: write
+  issues: write
+  pull-requests: write
+  deployments: write
 
 jobs:
   sync:
@@ -34,51 +34,43 @@ jobs:
         id: get_tags
         run: |
           tags=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/tags")
-          echo "Tags Response: $tags"  # Debug: Check the response
-
-          # Get the most recent tag
-          most_recent_tag=$(echo "$tags" | jq -r '.[0].name // empty')
-          if [ -z "$most_recent_tag" ]; then
+          if [ -z "$tags" ]; then
             echo "No tags found."
-            exit 0
+            exit 1
           fi
 
+          most_recent_tag=$(echo "$tags" | jq -r '.[0].name // empty')
           echo "Most Recent Tag: $most_recent_tag"
           echo "most_recent_tag=$most_recent_tag" >> $GITHUB_ENV
 
       - name: Get Release Information for Most Recent Tag
+        id: get_release_info
         run: |
           release_info=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ env.most_recent_tag }}")
-          echo "Release Info Response: $release_info"  # Debug: Print the full JSON response for debugging
-
-          # Check for errors
           if [[ "$release_info" == *"Not Found"* ]]; then
-            echo "Error: Release not found for tag ${TAG}."
+            echo "Error: Release not found for tag ${env.most_recent_tag}."
             exit 1
           fi
 
-          # Extract asset URLs using jq
           asset_list=$(echo "$release_info" | jq -r '.assets[].browser_download_url // empty')
 
-          # Print asset URLs for verification
-          echo "Assets to download:"
-          echo "$asset_list"
-
           if [ -z "$asset_list" ]; then
-            echo "No assets found for the tag ${most_recent_tag}."
+            echo "No assets found for the tag ${env.most_recent_tag}."
             exit 0
           fi
+
+          echo "$asset_list" > assets.txt  # Save asset URLs to a text file for the next step
+          echo "Assets to download saved to assets.txt."
 
       - name: Pull Changes from Codeberg
         env:
           CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
         run: |
-          # Add the Codeberg remote only once
           git remote add codeberg https://$CODEBERG_TOKEN@codeberg.org/unwanted9855/blended-strawberry.git || echo "Remote 'codeberg' already exists."
 
       - name: Download Assets
         run: |
-          echo "$asset_list" | while read -r asset_url; do
+          while IFS= read -r asset_url; do
             if [ -z "$asset_url" ]; then
               echo "Empty URL, skipping."
               continue
@@ -107,4 +99,4 @@ jobs:
 
             # Pause for a moment (e.g., 2 seconds)
             sleep 2
-          done
+          done < assets.txt  # Read URLs from the generated file

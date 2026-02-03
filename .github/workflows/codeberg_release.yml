@@ -34,19 +34,26 @@ jobs:
       - name: Download Latest Release Assets
         run: |
           latest_release_id=$(echo $latest_release | jq -r .id)
-          assets_url="https://api.github.com/repos/${{ github.repository }}/releases/$latest_release_id/assets"
-          asset_list=$(curl -s -H "Authorization: token $GITHUB_TOKEN" -H "Accept: application/json" "$assets_url")
+          echo "Latest Release ID: $latest_release_id"
 
-          # Debugging the asset list
-          echo "Asset List Response: $asset_list"
-          echo "$asset_list" | jq 'if type == "array" then "Valid" else "Invalid" end'
-          
+          # Get all release information, including assets
+          release_info=$(curl -s -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/repos/${{ github.repository }}/releases/$latest_release_id")
+          echo "Release Info Response: $release_info"  # Debugging: Check the response structure
+
+          # Check if assets are present
+          asset_list=$(echo "$release_info" | jq -r '.assets')
+          if [ "$asset_list" == "[]" ]; then
+            echo "No assets found for this release."
+            exit 0  # Exit if no assets are found
+          fi
+
           # Loop through the assets and download each one
-          echo "$asset_list" | jq -r '.[].url' | while read -r asset_url; do
+          echo "$release_info" | jq -r '.assets[].url' | while read -r asset_url; do
             asset_name=$(basename "$asset_url")
             echo "Downloading asset: $asset_name"
             curl -L -O -H "Authorization: token $GITHUB_TOKEN" "$asset_url"
           done
+
 
       - name: Add Downloaded Files to Git
         run: |

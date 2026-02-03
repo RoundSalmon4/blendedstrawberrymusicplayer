@@ -128,6 +128,11 @@ jobs:
             sleep 2
           done < assets.txt  # Read URLs from the generated file
 
+      - name: Stage and Commit Uploaded Files
+        run: |
+          git add .
+          git commit -m "Uploaded assets for ${{ env.tag_name }}" || echo "No changes to commit"
+
       - name: Merge Branch with Master on Codeberg
         run: |
           git checkout master

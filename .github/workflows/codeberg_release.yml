@@ -33,19 +33,28 @@ jobs:
           assets=$(curl -s -H "Accept: application/vnd.github.v3.raw" "$assets_url")
           echo "$assets" | jq -r '.[].url' > asset_urls.txt
 
+          # Download each asset using the token
           while read -r asset_url; do
             curl -L -O -H "Authorization: token $GITHUB_TOKEN" "$asset_url"
           done < asset_urls.txt
 
-      - name: Clean untracked files
-        run: git clean -fd
+      - name: Add downloaded files to Git
+        run: |
+          git add .
 
-      - name: Push to Codeberg
+      - name: Clean untracked files
+        run: |
+          git clean -fd
+
+      - name: Pull changes from Codeberg
         env:
           CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
         run: |
           git remote add codeberg https://$CODEBERG_TOKEN@codeberg.org/unwanted9855/blended-strawberry.git
+          git fetch codeberg
           git pull --rebase codeberg master
-          git add .
+
+      - name: Commit and Push
+        run: |
           git commit -m "Sync latest release assets" || echo "No changes to commit"
           git push codeberg master

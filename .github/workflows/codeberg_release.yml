@@ -1,22 +1,27 @@
-name: Prepare Release for Manual Upload
+name: Sync Releases to Codeberg
 
 on:
   workflow_dispatch:  # Trigger manually
 
 permissions:
-  contents: read  # Read access since we're not writing
+  contents: write  # Allow action to write to repository
   issues: write
   pull-requests: write
   deployments: write
 
 jobs:
-  prepare:
+  sync:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v2
         with:
           fetch-depth: 0
+
+      - name: Clean Previous Downloads
+        run: |
+          echo "Cleaning up previous downloads..."
+          rm -f *.dmg *.exe
 
       - name: Get Latest Release Info
         id: get_release
@@ -29,9 +34,30 @@ jobs:
           fi
           echo "Latest release tag: $tag_name"
           echo "tag_name=$tag_name" >> $GITHUB_ENV
+          echo "$latest_release" | jq -r '.assets[] | "\(.name) \(.browser_download_url)"' > assets.txt
 
-      - name: Prepare Upload Link
+      - name: Download Assets
         run: |
-          echo "Prepare to manually upload assets."
-          release_url="https://codeberg.org/unwanted9855/blended-strawberry/releases/tag/${{ env.tag_name }}"
-          echo "You can upload your assets manually using the following URL: $release_url"
+          while IFS= read -r line; do
+            asset_name=$(echo "$line" | awk '{print $1}')
+            asset_url=$(echo "$line" | awk '{print $2}')
+            echo "Downloading asset: $asset_name from: $asset_url"
+            if curl -L -O "$asset_url"; then
+              echo "$asset_name downloaded successfully."
+            else
+              echo "Failed to download $asset_name. Exiting."
+              exit 1
+            fi
+          done < assets.txt
+
+      - name: Verify Downloads
+        run: |
+          echo "Downloaded Files:"
+          ls -al *.exe *.dmg
+
+      - name: Manual Upload Instructions
+        run: |
+          echo "Download complete! You can now upload the downloaded assets to Codeberg manually."
+          echo "Visit your releases page: https://codeberg.org/unwanted9855/blended-strawberry/releases/tag/${{ env.tag_name }}"
+          echo "Upload the following assets:"
+          ls -1 *.exe *.dmg

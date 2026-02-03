@@ -83,17 +83,24 @@ jobs:
                 echo "Creating release for tag ${env.most_recent_tag}."
                 release_data="{\"tag_name\":\"${{ env.most_recent_tag }}\",\"name\":\"Release ${{ env.most_recent_tag }}\",\"body\":\"Release for tag ${{ env.most_recent_tag }}\"}"
                 release_response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$release_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
+                
+                echo "Release creation response: $release_response" # Log the response
+
+                # Check if release creation was successful
                 if [[ "$release_response" == *"\"id\":"* ]]; then
                   echo "Release created successfully."
                 else
                   echo "Failed to create release. Exiting."
                   exit 1
                 fi
+              else
+                echo "Release already exists for tag ${env.most_recent_tag}."
               fi
 
-              # Upload the asset to the release
+              # Get the upload URL from the release response (assuming it's part of the release creation response)
+              upload_url="https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/assets?name=$asset_name"
+              
               echo "Uploading asset $asset_name to release for tag ${{ env.most_recent_tag }}."
-              upload_url="https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/assets?name=$(basename "$asset_name")"
               if ! curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: $(file -b --mime-type "$asset_name")" --data-binary @"$asset_name" "$upload_url"; then
                 echo "Failed to upload $asset_name. Exiting."
                 exit 1
@@ -106,3 +113,4 @@ jobs:
             # Pause briefly
             sleep 2
           done < assets.txt  # Read URLs from the generated file
+

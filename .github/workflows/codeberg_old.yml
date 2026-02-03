@@ -36,8 +36,26 @@ jobs:
             release_id=$(echo "$line" | awk '{print $2}')
             echo "Processing release with tag $tag_name and ID $release_id."
 
-            # Check for release assets
-            echo "Checking for assets for release tag $tag_name."
+            # Check if release already exists on Codeberg
+            release=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/$tag_name")
+
+            if [[ "$release" == *"Not Found"* ]]; then
+              echo "Creating new release for tag $tag_name."
+              release_data="{\"tag_name\":\"$tag_name\",\"name\":\"Release $tag_name\",\"body\":\"Release for tag $tag_name\"}"
+              release_response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$release_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
+              release_id=$(echo "$release_response" | jq -r '.id')  # Extract release ID
+            else
+              echo "Release for tag $tag_name found."
+              release_id=$(echo "$release" | jq -r '.id')  # Extract release ID
+            fi
+
+            # Check for assets for the current release
+            echo "Checking for existing assets for release tag $tag_name."
+            existing_assets=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/$release_id/assets")
+            existing_asset_names=$(echo "$existing_assets" | jq -r '.[].name')
+
+            # Download assets for the current release
+            echo "Downloading assets for release $tag_name."
             assets=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/$release_id/assets")
             asset_count=$(echo "$assets" | jq '. | length')
 
@@ -46,13 +64,18 @@ jobs:
               continue
             fi
 
-            # Download assets for the current release
-            echo "Downloading assets for release $tag_name."
             echo "$assets" | jq -r '.[] | "\(.name) \(.browser_download_url)"' > assets.txt
 
             while IFS= read -r asset_line; do
               asset_name=$(echo "$asset_line" | awk '{print $1}')
               asset_url=$(echo "$asset_line" | awk '{print $2}')
+
+              # Skip downloading if asset already exists on Codeberg
+              if echo "$existing_asset_names" | grep -q "$asset_name"; then
+                echo "Asset $asset_name already exists, skipping download."
+                continue
+              fi
+
               echo "Downloading asset: $asset_name from: $asset_url"
               if curl -L -O "$asset_url"; then
                 echo "$asset_name downloaded successfully."

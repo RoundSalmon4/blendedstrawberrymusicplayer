@@ -76,11 +76,17 @@ jobs:
                 release_response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$release_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
 
                 if [[ "$release_response" == *"\"id\":"* ]]; then
-                  echo "Release created successfully."
+                  echo "Release created successfully. Response: $release_response"
                 else
-                  echo "Failed to create release. Exiting."
+                  echo "Failed to create release. Exiting. Response: $release_response"
                   exit 1
                 fi
+              fi
+
+              # Check if asset file exists before uploading
+              if [[ ! -f "$asset_name" ]]; then
+                echo "File $asset_name does not exist. Skipping upload."
+                continue
               fi
 
               # Upload the asset to the release

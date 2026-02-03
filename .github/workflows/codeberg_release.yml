@@ -49,7 +49,7 @@ jobs:
       - name: Get Release Information for Most Recent Tag
         run: |
           release_info=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ env.most_recent_tag }}")
-          echo "Release Info Response: $release_info"  # Debug: Print the full JSON response
+          echo "Release Info Response: $release_info"  # Print the full JSON response for debugging
 
           # Check for errors
           if [[ "$release_info" == *"Not Found"* ]]; then
@@ -62,17 +62,15 @@ jobs:
 
           # Print asset URLs for verification
           echo "Assets to download:"
-          echo "$asset_list"  # This should list the URLs
+          echo "$asset_list"
 
           if [ -z "$asset_list" ]; then
             echo "No assets found for the tag ${most_recent_tag}."
             exit 0
           fi
 
-          # Download each asset
+          # Download each asset and push to Codeberg immediately
           echo "$asset_list" | while read -r asset_url; do
-            # Debug: Show the URL being processed
-            echo "Processing URL: $asset_url"
             if [ -z "$asset_url" ]; then
               echo "Empty URL, skipping."
               continue
@@ -80,13 +78,26 @@ jobs:
 
             asset_name=$(basename "$asset_url")
             echo "Downloading asset: $asset_name"
-            curl -L -O -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$asset_url" && \
-            echo "$asset_name downloaded successfully." || \
-            echo "Failed to download $asset_name."
+            if curl -L -O -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$asset_url"; then
+              echo "$asset_name downloaded successfully."
+              
+              # Add the downloaded file to Git
+              git add "$asset_name"
+              
+              # Commit the addition
+              git commit -m "Add asset: $asset_name"
 
-            # Pause for a moment (e.g., 2 seconds)
+              # Push to Codeberg
+              git push --force codeberg master
+            else
+              echo "Failed to download $asset_name. Exiting."
+              exit 1  # Stop the action on failure
+            fi
+    
+            # Pause for a brief moment (e.g., 2 seconds)
             sleep 2
           done
+
 
       - name: Download Each Asset
         run: |

@@ -26,26 +26,20 @@ jobs:
       - name: Get All Releases
         id: get_releases
         run: |
-          # Fetch all releases
           releases=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases")
-          
-          # Check if there are enough releases
           total_releases=$(echo "$releases" | jq '. | length')
           if [[ $total_releases -lt 2 ]]; then
             echo "Not enough releases found to process."
             exit 1
           fi
-          
-          # Store the releases in a format suitable for iteration
           echo "$releases" > releases.json
           echo "total_releases=$total_releases" >> $GITHUB_ENV
 
       - name: Upload Assets for Each Release
         run: |
-          # Get total number of releases
           total_releases=${{ env.total_releases }}
           for (( i=1; i<total_releases; i++ )); do
-            release=$(jq ".[$i]" releases.json)  # Skip the latest release (index 0)
+            release=$(jq ".[$i]" releases.json)
             tag_name=$(echo "$release" | jq -r '.tag_name // empty')
 
             if [ -z "$tag_name" ]; then
@@ -104,8 +98,6 @@ jobs:
                 fi
                 
                 echo "Uploaded $asset_name successfully."
-
-                # Optional: Add a slight delay to prevent rate limiting
                 sleep 2
               else
                 echo "Asset $asset_name does not exist for release $tag_name, skipping."

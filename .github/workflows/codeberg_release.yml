@@ -90,8 +90,12 @@ jobs:
             release_data="{\"tag_name\":\"${{ env.most_recent_tag }}\",\"name\":\"Release ${{ env.most_recent_tag }}\",\"body\":\"Release for tag ${{ env.most_recent_tag }}\"}"
             echo "Release Data: $release_data"  # Debug output
 
+            # Make the API call to create the release
             release_response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$release_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
             
+            # Output the raw response to see what's coming back
+            echo "Release API Response: $release_response"
+
             if [[ "$release_response" != *"\"id\":"* ]]; then
               echo "Failed to create release for $asset_name. Response: $release_response"
               exit 1
@@ -108,6 +112,7 @@ jobs:
             echo "$asset_name uploaded successfully."
 
           done < assets.txt  # Read URLs from the generated file
+
 
 
       - name: Merge Back to Master

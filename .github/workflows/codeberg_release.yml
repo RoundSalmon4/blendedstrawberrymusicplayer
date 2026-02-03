@@ -86,8 +86,10 @@ jobs:
             fi
             echo "$asset_name downloaded successfully."
 
-            # Create a new release for the assets
+            # Create a new release for the assets using the most recent tag name
             release_data="{\"tag_name\":\"${{ env.most_recent_tag }}\",\"name\":\"Release ${{ env.most_recent_tag }}\",\"body\":\"Release for tag ${{ env.most_recent_tag }}\"}"
+            echo "Release Data: $release_data"  # Debug output
+
             release_response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$release_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
             
             if [[ "$release_response" != *"\"id\":"* ]]; then
@@ -106,6 +108,7 @@ jobs:
             echo "$asset_name uploaded successfully."
 
           done < assets.txt  # Read URLs from the generated file
+
 
       - name: Merge Back to Master
         run: |

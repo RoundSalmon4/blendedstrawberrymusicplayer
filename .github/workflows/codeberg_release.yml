@@ -44,7 +44,6 @@ jobs:
         run: |
           branch_name="upload-assets-${{ github.run_id }}"
           git checkout -b "$branch_name"
-          git push origin "$branch_name"  # Push to Codeberg
 
       - name: Check if Tag Exists on Codeberg
         id: check_tag
@@ -127,6 +126,11 @@ jobs:
             # Pause briefly before the next iteration
             sleep 2
           done < assets.txt  # Read URLs from the generated file
+
+      - name: Configure Git Identity
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
 
       - name: Stage and Commit Uploaded Files
         run: |

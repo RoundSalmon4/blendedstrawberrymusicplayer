@@ -55,9 +55,38 @@ jobs:
           echo "Downloaded Files:"
           ls -al *.exe *.dmg
 
-      - name: Manual Upload Instructions
+      - name: Upload Assets to Codeberg
         run: |
-          echo "Download complete! You can now upload the downloaded assets to Codeberg manually."
-          echo "Visit your releases page: https://codeberg.org/unwanted9855/blended-strawberry/releases/tag/${{ env.tag_name }}"
-          echo "Upload the following assets:"
-          ls -1 *.exe *.dmg
+          echo "Checking for release with tag ${{ env.tag_name }}."
+          release=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${{ env.tag_name }}")
+
+          if [[ "$release" == *"Not Found"* ]]; then
+              echo "Creating new release for tag ${{ env.tag_name }}."
+              release_data="{\"tag_name\":\"${{ env.tag_name }}\",\"name\":\"Release ${{ env.tag_name }}\",\"body\":\"Release for tag ${{ env.tag_name }}\"}"
+              release_response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$release_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
+              echo "Release creation response: $release_response"
+          else
+              echo "Release for tag ${{ env.tag_name }} found."
+          fi
+
+          for asset_name in *.dmg *.exe; do
+            if [[ -f "$asset_name" ]]; then
+              upload_url="https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/assets?name=$asset_name"
+              echo "Uploading asset $asset_name to release for tag ${{ env.tag_name }}."
+              
+              if ! response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: $(file -b --mime-type "$asset_name")" --data-binary @"$asset_name" "$upload_url"); then
+                echo "Failed to upload $asset_name. Response: $response"
+                exit 1
+              fi
+
+              echo "Upload response for $asset_name: $response"
+              if [[ "$response" != *"\"id\":"* ]]; then
+                echo "Upload of $asset_name failed or was not successful. Response: $response"
+                exit 1
+              fi
+
+              echo "Uploaded $asset_name successfully."
+            else
+              echo "Asset $asset_name does not exist, skipping."
+            fi
+          done

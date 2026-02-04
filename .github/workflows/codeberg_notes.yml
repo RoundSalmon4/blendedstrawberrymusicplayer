@@ -23,14 +23,21 @@ jobs:
 
       - name: Check Releases JSON Structure
         run: |
-          cat releases.json  # Log the content of the JSON file to verify structure
+          # Log the content of the JSON file to verify structure
+          if [[ ! -s releases.json ]]; then
+            echo "Releases.json is empty. No releases to process."
+            exit 0
+          fi
+
+          # Display the content of releases.json for verification
+          cat releases.json
 
       - name: Copy Release Notes to Codeberg
         run: |
-          # Check if releases.json is empty
-          if [[ ! -s releases.json ]]; then
-            echo "No releases found. Exiting..."
-            exit 0
+          # Ensure releases.json has valid JSON format
+          if ! jq empty releases.json; then
+            echo "Invalid JSON format in releases.json. Exiting..."
+            exit 1
           fi
 
           jq -c '.[]' releases.json | while read -r release; do

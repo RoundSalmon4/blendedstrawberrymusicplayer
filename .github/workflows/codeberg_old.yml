@@ -37,7 +37,6 @@ jobs:
       - name: Upload Assets for Each Release
         run: |
           total_releases=$(jq '. | length' releases.json)
-          # Start iterating from the second-oldest release (index 1)
           for (( i=1; i<total_releases; i++ )); do
             release=$(jq ".[$i]" releases.json)
             tag_name=$(echo "$release" | jq -r '.tag_name // empty')
@@ -67,9 +66,10 @@ jobs:
             echo "Downloaded Files:"
             ls -al *.exe *.dmg
 
-            # Check or create release on Codeberg
+            # Check for existing release on Codeberg
             release_check=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${tag_name}")
 
+            echo "Checking for release with tag $tag_name."
             if [[ "$release_check" == *"Not Found"* ]]; then
               echo "Creating new release for tag $tag_name."
               release_data="{\"tag_name\":\"$tag_name\",\"name\":\"Release $tag_name\",\"body\":\"Release for tag $tag_name\"}"
@@ -93,9 +93,6 @@ jobs:
                 echo "Upload response for $asset_name: $response"
                 
                 if [[ "$http_code" -ne 201 ]]; then
-                  if [[ "$response" == *"Not Found"* ]]; then
-                    echo "Release ID not found for $tag_name. Please verify the release exists."
-                  fi
                   echo "Failed to upload $asset_name. HTTP Status: $http_code. Response: $response"
                   exit 1
                 fi

@@ -32,18 +32,18 @@ jobs:
       - name: Process Releases
         run: |
           while IFS= read -r tag_name; do
-            # Check if release exists on Codeberg
-            release=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/$tag_name")
-            if [[ "$release" == *"Not Found"* ]]; then
+            # Check if a release exists on Codeberg using the actual release endpoint
+            release_check=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
+            if echo "$release_check" | jq -e ".[] | select(.tag_name == \"$tag_name\")" > /dev/null; then
+              echo "Release for tag $tag_name already exists on Codeberg. Skipping..."
+            else
               echo "Found unuploaded release tag: $tag_name"
               echo "tag_name=$tag_name" >> $GITHUB_ENV
               break  # Stop after finding the first unuploaded release
-            else
-              echo "Release for tag $tag_name already exists on Codeberg. Skipping..."
             fi
           done < releases.txt
 
-          if [[ -z "${{ env.tag_name }}" ]]; then
+          if [ -z "${{ env.tag_name }}" ]; then
             echo "No unuploaded release found."
             exit 1
           fi

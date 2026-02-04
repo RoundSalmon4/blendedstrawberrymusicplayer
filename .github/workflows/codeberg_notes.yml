@@ -16,28 +16,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Get Releases from GitHub
-        id: get_releases
+      - name: Get Releases from GitHub and Copy to Codeberg
         run: |
-          curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases" \
-          | jq -r '.[] | select(.prerelease == false) | {tag_name: .tag_name, body: .body}' > releases.json
+          # Fetch releases from GitHub
+          releases=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases")
 
-      - name: Validate Releases JSON Structure
-        run: |
-          if [ ! -s releases.json ]; then
-            echo "No releases found or releases.json is empty. Exiting..."
-            exit 0
-          fi
-
-          # Validate JSON structure
-          if ! jq empty releases.json; then
-            echo "Invalid JSON format in releases.json. Exiting..."
-            exit 1
-          fi
-
-      - name: Copy Release Notes to Codeberg
-        run: |
-          while IFS= read -r release; do
+          echo "$releases" | jq -c '.[] | select(.prerelease == false)' | while read -r release; do
             tag_name=$(echo "$release" | jq -r '.tag_name')
             body=$(echo "$release" | jq -r '.body')
 
@@ -53,6 +37,7 @@ jobs:
 
             if [[ $(echo "$release_check" | jq -r '.message') == "The target couldn't be found." ]]; then
               echo "Release $tag_name not found on Codeberg. Skipping..."
+              continue
             else
               echo "Updating release notes for tag: $tag_name"
               update_data="{\"body\":\"${body}\"}"
@@ -60,4 +45,4 @@ jobs:
 
               echo "Update response for $tag_name: $update_response"
             fi
-          done < <(jq -c '.[]' releases.json)
+          done

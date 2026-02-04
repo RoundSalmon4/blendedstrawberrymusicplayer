@@ -88,12 +88,22 @@ jobs:
           echo "Checking for release with tag ${{ env.tag_name }}."
           release=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${{ env.tag_name }}")
 
+          # Log the full response for debugging
+          echo "Release check response: $release"
+
           if [[ "$release" == *"Not Found"* ]]; then
               echo "Creating new release for tag ${{ env.tag_name }}."
               release_data="{\"tag_name\":\"${{ env.tag_name }}\",\"name\":\"Release ${{ env.tag_name }}\",\"body\":\"Release for tag ${{ env.tag_name }}\"}"
               release_response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$release_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
               echo "Release creation response: $release_response"
               release_id=$(echo "$release_response" | jq -r '.id')  # Extract release ID
+
+              # Log creation response
+              if [ -z "$release_id" ]; then
+                echo "Failed to create release. Response: $release_response"
+                exit 1
+              fi
+
           else
               echo "Release for tag ${{ env.tag_name }} found."
               release_id=$(echo "$release" | jq -r '.id')  # Extract release ID
@@ -133,3 +143,4 @@ jobs:
               echo "Asset $asset_name does not exist, skipping."
             fi
           done
+

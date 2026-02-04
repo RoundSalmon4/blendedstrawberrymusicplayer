@@ -31,31 +31,32 @@ jobs:
             echo "Error: Failed to retrieve releases from GitHub."
             exit 1
           fi
-          
+
           echo "$releases" > releases.json
 
       - name: Check and Upload Assets
         run: |
+          # Iterate through releases
           for release in $(jq -r '.[] | @base64' releases.json); do
             _jq() {
               echo ${release} | base64 --decode | jq -r ${1}
             }
 
-            tag=$(_jq '.tag_name // empty')
-            echo "Checking release tag: $tag"
+            tag=$(_jq '.tag_name')
 
-            # Check if assets exist on Codeberg
-            existing_assets=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/$tag" | jq -r '.assets | length')
+            # Check for existing assets on Codeberg
+            existing_assets=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/$tag" | jq -r '.assets | .[] | select(.name) | length')
 
-            if [[ "$existing_assets" -gt 0 ]]; then
+            if [[ -n "$existing_assets" ]]; then
               echo "Assets already exist for release tag $tag. Skipping upload."
               continue
             fi
 
-            # Download assets from GitHub
+            # Download and upload assets
             for asset in $(_jq '.assets | .[] | .browser_download_url // empty'); do
               asset_name=$(_jq '.assets | .[] | .name // empty')
               echo "Downloading asset: $asset_name from: $asset"
+
               if curl -L -O -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$asset"; then
                 echo "$asset_name downloaded successfully."
               else

@@ -23,7 +23,7 @@ jobs:
 
       - name: Copy Release Notes to Codeberg
         run: |
-          cat releases.json | jq -c '.[]' | while read -r release; do
+          jq -c '.[]' releases.json | while read -r release; do
             tag_name=$(echo "$release" | jq -r '.tag_name')
             body=$(echo "$release" | jq -r '.body')
 

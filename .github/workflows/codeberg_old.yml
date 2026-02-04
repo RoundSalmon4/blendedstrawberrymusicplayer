@@ -23,89 +23,48 @@ jobs:
           echo "Cleaning up previous downloads..."
           rm -f *.dmg *.exe
 
-      - name: Gather Asset Names from GitHub Releases
-        id: gather_assets
+      - name: Gather Releases from GitHub
+        id: gather_releases
         run: |
-          releases=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases")
+          releases=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/RoundSalmon4/blended-strawberry/releases")
           if [[ $? -ne 0 ]]; then
             echo "Error: Failed to retrieve releases from GitHub."
             exit 1
           fi
+          
+          echo "$releases" > releases.json
 
-          if [[ -z "$releases" ]]; then
-            echo "No releases found in the repository."
-            exit 1
-          fi
-
-          asset_names=()
-          for release in $(echo "$releases" | jq -r '.[] | @base64'); do
+      - name: Check and Upload Assets
+        run: |
+          for release in $(jq -r '.[] | @base64' releases.json); do
             _jq() {
               echo ${release} | base64 --decode | jq -r ${1}
             }
-            for asset in $(_jq '.assets | .[] | .name // empty'); do
-              [[ -n "$asset" ]] && asset_names+=("$asset")
-            done
-          done
 
-          if [[ ${#asset_names[@]} -eq 0 ]]; then
-            echo "No assets found in releases."
-            exit 0
-          else
-            echo "assets=$(IFS=,; echo "${asset_names[*]}")" >> $GITHUB_ENV
-          fi
+            tag=$(_jq '.tag_name // empty')
+            echo "Checking release tag: $tag"
 
-      - name: Download and Upload Assets
-        run: |
-          IFS=',' read -r -a assets <<< "${{ env.assets }}"
+            # Check if assets exist on Codeberg
+            existing_assets=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/$tag" | jq -r '.assets | length')
 
-          for asset_name in "${assets[@]}"; do
-            if [[ -f "$asset_name" ]]; then
-              echo "Asset $asset_name already exists locally, skipping download."
+            if [[ "$existing_assets" -gt 0 ]]; then
+              echo "Assets already exist for release tag $tag. Skipping upload."
               continue
             fi
 
-            # Download asset URL from the latest tag
-            asset_url=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/assets?name=$asset_name" | jq -r '.[0].url')
-            if [[ "$asset_url" == "null" || -z "$asset_url" ]]; then
-              echo "Asset $asset_name not found in release list."
-              continue
-            fi
-
-            echo "Downloading asset: $asset_name from: $asset_url"
-            if curl -L -O -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$asset_url"; then
-              echo "$asset_name downloaded successfully."
-            else
-              echo "Failed to download $asset_name. Exiting."
-              exit 1
-            fi
-          done
-
-          for asset_name in "${assets[@]}"; do
-            if [[ -f "$asset_name" ]]; then
-              tag="1.0"  # Replace with your logic to get the actual tag
-
-              # Check if release exists on Codeberg
-              existing_assets=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/$tag" | jq -r '.assets | length')
-
-              if [[ "$existing_assets" -gt 0 ]]; then
-                echo "Assets already exist for release tag $tag. Skipping upload."
-                continue
-              fi
-
-              release_id=""
-              release=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/$tag")
-
-              if [[ "$release" == *"Not Found"* ]]; then
-                echo "Creating new release for tag $tag."
-                release_data="{\"tag_name\":\"$tag\",\"name\":\"Release $tag\",\"body\":\"Release for tag $tag\"}"
-                release_response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$release_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
-                release_id=$(echo "$release_response" | jq -r '.id')
+            # Download assets from GitHub
+            for asset in $(_jq '.assets | .[] | .browser_download_url // empty'); do
+              asset_name=$(_jq '.assets | .[] | .name // empty')
+              echo "Downloading asset: $asset_name from: $asset"
+              if curl -L -O -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$asset"; then
+                echo "$asset_name downloaded successfully."
               else
-                echo "Release for tag $tag found."
-                release_id=$(echo "$release" | jq -r '.id')
+                echo "Failed to download $asset_name. Exiting."
+                exit 1
               fi
 
-              upload_url="https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/$release_id/assets?name=$asset_name"
+              # Upload asset to Codeberg
+              upload_url="https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/$tag/assets?name=$asset_name"
               echo "Uploading asset $asset_name to release for tag $tag."
 
               response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/octet-stream" --data-binary @"$asset_name" "$upload_url" -w "HTTPSTATUS:%{http_code}")
@@ -117,10 +76,5 @@ jobs:
               fi
 
               echo "Uploaded $asset_name successfully."
-
-              # Optional: Add a slight delay to prevent rate limiting
-              sleep 2
-            else
-              echo "Asset $asset_name does not exist, skipping."
-            fi
+            done
           done

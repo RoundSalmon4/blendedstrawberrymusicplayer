@@ -20,6 +20,11 @@ jobs:
           git config --global user.email "codebergsync.nzvel@simplelogin.com"
           git config --global user.name "RoundSalmon4"
 
+      - name: Clean Previous Downloads
+        run: |
+          echo "Cleaning up previous downloads..."
+          rm -f *.dmg *.exe
+          
       - name: Push to Codeberg
         env:
           CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}

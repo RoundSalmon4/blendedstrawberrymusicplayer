@@ -1,4 +1,4 @@
-name: Sync Old Releases to Codeberg
+name: Sync Releases to Codeberg
 
 on:
   workflow_dispatch:  # Trigger manually
@@ -43,7 +43,19 @@ jobs:
 
       - name: Download Assets
         run: |
+          if [ -z "${{ env.tag_name }}" ]; then
+            echo "No unuploaded release found."
+            exit 1
+          fi
+
           latest_release=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ env.tag_name }}")
+          
+          # Check if the response is valid
+          if [ -z "$latest_release" ]; then
+            echo "No latest release found."
+            exit 1
+          fi
+          
           echo "$latest_release" | jq -r '.assets[] | "\(.name) \(.browser_download_url)"' > assets.txt
 
           while IFS= read -r line; do

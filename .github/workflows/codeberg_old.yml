@@ -23,28 +23,38 @@ jobs:
           echo "Cleaning up previous downloads..."
           rm -f *.dmg *.exe
 
-      - name: Get Latest Release Info
-        id: get_release
+      - name: Get All Releases Info
+        id: get_releases
         run: |
+          # Retrieve all releases
           releases=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases")
           latest_unuploaded_release=""
+          
           for release in $(echo "$releases" | jq -r '.[] | @base64'); do
             _jq() {
               echo ${release} | base64 --decode | jq -r ${1}
             }
             tag_name=$(_jq '.tag_name')
-
-            # Check if this release exists on Codeberg
-            release_check=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/$tag_name")
-            if [[ "$release_check" == *"Not Found"* ]]; then
-              latest_unuploaded_release=$tag_name
-              break
+            
+            # Check if assets for this release are already uploaded on Codeberg
+            release_assets_check=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/$tag_name")
+            if [[ "$release_assets_check" != *"Not Found"* ]]; then
+              echo "Assets for release tag $tag_name already exist on Codeberg, skipping."
+              continue
             fi
+
+            # If not found, save as latest unuploaded release
+            latest_unuploaded_release=$tag_name
+            break  # Stop searching once we find the first unuploaded release
           done
 
           if [ -z "$latest_unuploaded_release" ]; then
-            echo "All releases are already uploaded."
-            exit 0
+            echo "No unuploaded releases found. Creating a new release."
+            # Grab the latest release info
+            latest_release=$(echo "$releases" | jq -r '. | sort_by(.published_at) | last')
+            tag_name=$(echo "$latest_release" | jq -r '.tag_name')
+            echo "Creating new release for tag $tag_name"
+            latest_unuploaded_release=$tag_name
           fi
 
           echo "Latest unuploaded release tag: $latest_unuploaded_release"

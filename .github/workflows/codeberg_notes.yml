@@ -40,15 +40,12 @@ jobs:
             else
               echo "Updating release notes for tag: $tag_name"
 
-              # Create payload
-              update_data=$(jq -n --arg body "$body" '{body: $body}')
+              # For testing, send a simplified body
+              test_body="This is a test message for version $tag_name."
+              update_data=$(jq -n --arg body "$test_body" '{body: $body}')
 
-              # Log the payload and check length
               echo "Payload for update: $update_data"
-              payload_length=$(echo "$update_data" | jq -r '.body | length')
               
-              echo "Payload length: $payload_length characters"
-
               # Send PATCH request
               update_response=$(curl -s -X PATCH -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$update_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${tag_name}")
 

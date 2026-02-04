@@ -33,6 +33,12 @@ jobs:
             exit 1
           fi
 
+          # Check if releases are empty
+          if [[ -z "$releases" ]]; then
+            echo "No releases found in the repository."
+            exit 1
+          fi
+
           tags_to_download=()
           
           for release in $(echo "$releases" | jq -r '.[] | @base64'); do
@@ -40,7 +46,7 @@ jobs:
               echo ${release} | base64 --decode | jq -r ${1}
             }
             tag_name=$(_jq '.tag_name')
-
+            
             # Check for existing files in Codeberg release
             existing_assets=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/$tag_name")
             if [[ $? -ne 0 ]]; then
@@ -50,13 +56,17 @@ jobs:
             
             # Collect asset names if the release exists on Codeberg
             if [[ "$existing_assets" != *"Not Found"* ]]; then
-              uploaded_files=$(echo "$existing_assets" | jq -r '.assets[].name')
-              for asset in $(_jq '.assets | .[] | .name'); do
-                if echo "$uploaded_files" | grep -q "${asset}"; then
-                  echo "Asset $asset already exists for tag $tag_name on Codeberg, skipping."
-                  continue 2  # Skip to the next release
-                fi
-              done
+              uploaded_files=$(echo "$existing_assets" | jq -r '.assets[]?.name // empty')
+              if [[ -z "$uploaded_files" ]]; then
+                echo "No assets found for existing release on Codeberg for tag $tag_name."
+              else
+                for asset_name in $(_jq '.assets | .[] | .name // empty'); do
+                  if echo "$uploaded_files" | grep -q "${asset_name}"; then
+                    echo "Asset $asset_name already exists for tag $tag_name on Codeberg, skipping."
+                    continue 2  # Skip to the next release
+                  fi
+                done
+              fi
             fi
 
             # No matching assets, add the tag to the list
@@ -74,8 +84,14 @@ jobs:
             echo "Processing tag: $tag_name"
 
             # Get asset URLs for the current tag
-            asset_info=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/tags/$tag_name" | jq -r '.assets[] | "\(.name) \(.url)"')
-            if [[ -z "$asset_info" ]]; then
+            asset_info=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/tags/$tag_name")
+            if [[ $? -ne 0 ]]; then
+              echo "Error: Failed to retrieve assets for tag $tag_name."
+              continue
+            fi
+
+            asset_info_names=$(echo "$asset_info" | jq -r '.assets[] | "\(.name) \(.url)" // empty')
+            if [[ -z "$asset_info_names" ]]; then
               echo "No assets found for tag $tag_name, skipping."
               continue
             fi
@@ -91,10 +107,9 @@ jobs:
                 echo "Failed to download $asset_name. Exiting."
                 exit 1
               fi
-            done <<< "$asset_info"
+            done <<< "$asset_info_names"
 
-            # Upload to Codeberg
-            echo "Checking for release with tag $tag_name on Codeberg."
+            # Check for release with this tag on Codeberg
             release=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/$tag_name")
 
             if [[ "$release" == *"Not Found"* ]]; then

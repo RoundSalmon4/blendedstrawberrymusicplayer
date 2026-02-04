@@ -40,16 +40,18 @@ jobs:
             else
               echo "Updating release notes for tag: $tag_name"
 
-              # For testing, send a simplified body
+              # For testing, continue to use a simplified body
               test_body="This is a test message for version $tag_name."
               update_data=$(jq -n --arg body "$test_body" '{body: $body}')
 
               echo "Payload for update: $update_data"
               
-              # Send PATCH request
+              # Send PATCH request 
               update_response=$(curl -s -X PATCH -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$update_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${tag_name}")
 
+              # Log the full response for debugging
               echo "Update response for $tag_name: $update_response"
+              echo "Full response: $(echo "$update_response" | jq .)"
 
               # Enhanced error handling
               error_message=$(echo "$update_response" | jq -r '.message // empty')

@@ -37,13 +37,24 @@ jobs:
             tag_name=$(_jq '.tag_name')
             
             # Check if assets for this release are already uploaded on Codeberg
-            release_assets_check=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/$tag_name")
-            if [[ "$release_assets_check" != *"Not Found"* ]]; then
-              echo "Assets for release tag $tag_name already exist on Codeberg, skipping."
-              continue
+            release_assets=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/$tag_name")
+            if [[ "$release_assets" != *"Not Found"* ]]; then
+              # Check each asset if uploaded on Codeberg
+              asset_uploaded=true
+              for asset in $(_jq '.assets | .[] | .name'); do
+                if [[ "${asset}" == *"Not Found"* ]]; then
+                  asset_uploaded=false
+                  break
+                fi
+              done
+
+              if $asset_uploaded; then
+                echo "Assets for release tag $tag_name already exist on Codeberg, skipping."
+                continue
+              fi
             fi
 
-            # If not found, save as latest unuploaded release
+            # If no assets uploaded, save as latest unuploaded release
             latest_unuploaded_release=$tag_name
             break  # Stop searching once we find the first unuploaded release
           done
@@ -82,6 +93,8 @@ jobs:
 
       - name: Upload Assets to Codeberg
         run: |
+          release_id=""
+
           echo "Checking for release with tag ${{ env.tag_name }}."
           release=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${{ env.tag_name }}")
 
@@ -98,6 +111,13 @@ jobs:
 
           for asset_name in *.dmg *.exe; do
             if [[ -f "$asset_name" ]]; then
+              # Check if this asset has already been uploaded
+              asset_uploaded_check=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/$release_id/assets?name=$asset_name")
+              if [[ "$asset_uploaded_check" != *"Not Found"* ]]; then
+                echo "Asset $asset_name already uploaded, skipping."
+                continue
+              fi
+
               upload_url="https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/$release_id/assets?name=$asset_name"
               echo "Uploading asset $asset_name to release for tag ${{ env.tag_name }}."
               

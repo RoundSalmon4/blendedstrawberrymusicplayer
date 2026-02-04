@@ -85,6 +85,7 @@ jobs:
 
       - name: Upload Assets to Codeberg
         run: |
+          # Check if the release exists
           release=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${{ env.tag_name }}")
 
           if [[ "$release" == *"Not Found"* ]]; then

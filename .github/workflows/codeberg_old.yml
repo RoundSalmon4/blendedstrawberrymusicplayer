@@ -95,8 +95,15 @@ jobs:
               echo "Release creation response: $release_response"
               release_id=$(echo "$release_response" | jq -r '.id')  # Extract release ID
           else
+              # Extract release ID directly from the existing release response
               echo "Release for tag ${{ env.tag_name }} found."
               release_id=$(echo "$release" | jq -r '.id')  # Extract release ID
+          fi
+
+          # Ensure the release ID is valid before proceeding to upload assets
+          if [ -z "$release_id" ]; then
+            echo "Error: Release ID is not valid. Cannot proceed with uploads."
+            exit 1
           fi
 
           for asset_name in *.dmg *.exe; do

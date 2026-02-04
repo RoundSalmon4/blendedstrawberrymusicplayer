@@ -101,15 +101,15 @@ jobs:
               release_id=$(echo "$release_response" | jq -r '.id')
 
               if [ -z "$release_id" ] || [[ "$release_id" == "null" ]]; then
-                echo "Failed to create release. Response: $release_response"
-                exit 1
+                  echo "Failed to create release. Response: $release_response"
+                  exit 1
               fi
           else
               # If the release exists, extract its ID.
               release_id=$(echo "$release_check" | jq -r '.id')
               if [ -z "$release_id" ] || [[ "$release_id" == "null" ]]; then
-                echo "Error: Release ID is null. Response: $release_check"
-                exit 1
+                  echo "Error: Release ID is null. Response: $release_check"
+                  exit 1
               fi
 
               echo "Release for tag ${{ env.tag_name }} found."
@@ -118,26 +118,30 @@ jobs:
           echo "Using release ID: $release_id"
 
           for asset_name in *.dmg *.exe; do
-            if [[ -f "$asset_name" ]]; then
-              upload_url="https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/$release_id/assets?name=$asset_name"
-              echo "Uploading asset $asset_name to release for tag ${{ env.tag_name }}."
-              
-              response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/octet-stream" --data-binary @"$asset_name" "$upload_url" -w "HTTPSTATUS:%{http_code}")
-              http_code=$(echo "$response" | sed -e 's/HTTPSTATUS://')
+              if [[ -f "$asset_name" ]]; then
+                  upload_url="https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/$release_id/assets?name=$asset_name"
+                  echo "Uploading asset $asset_name to release for tag ${{ env.tag_name }}."
+                  
+                  # Handle the upload response more robustly
+                  response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/octet-stream" --data-binary @"$asset_name" "$upload_url" -w "HTTPSTATUS:%{http_code}")
+                  http_code=$(echo "$response" | sed -e 's/HTTPSTATUS://')
 
-              echo "Upload response for $asset_name: $response"
-              
-              if [[ "$http_code" -ne 201 ]]; then
-                echo "Failed to upload $asset_name. HTTP Status: $http_code. Response: $response"
-                if [ "$http_code" -eq 404 ]; then
-                  echo "Check if the target release ID $release_id is valid or if the asset name is correct."
-                fi
-                exit 1
+                  # Remove the HTTP status code from the response before attempting to parse it.
+                  response_body=$(echo "$response" | sed -e 's/HTTPSTATUS.*//')
+
+                  echo "Upload response for $asset_name: $response_body"
+                  
+                  if [[ "$http_code" -ne 201 ]]; then
+                      echo "Failed to upload $asset_name. HTTP Status: $http_code. Response: $response_body"
+                      if [ "$http_code" -eq 404 ]; then
+                          echo "Check if the target release ID $release_id is valid or if the asset name is correct."
+                      fi
+                      exit 1
+                  fi
+
+                  echo "Uploaded $asset_name successfully."
+                  sleep 2
+              else
+                  echo "Asset $asset_name does not exist, skipping."
               fi
-
-              echo "Uploaded $asset_name successfully."
-              sleep 2
-            else
-              echo "Asset $asset_name does not exist, skipping."
-            fi
           done

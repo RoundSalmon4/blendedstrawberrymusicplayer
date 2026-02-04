@@ -43,13 +43,17 @@ jobs:
 
             echo "Updating release notes for tag: $tag_name"
 
-            # Create payload 
-            update_data=$(jq -n --arg body "$body" '{body: $body}')
+            # Construct the release data with tag_name and body
+            release_data=$(jq -n \
+              --arg tag_name "$tag_name" \
+              --arg name "Release $tag_name" \
+              --arg body "$body" \
+              '{tag_name: $tag_name, name: $name, body: $body}')
 
-            echo "Payload for update: $update_data"
+            echo "Payload for update: $release_data"
             
             # Send PATCH request 
-            update_response=$(curl -s -X PATCH -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$update_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${tag_name}")
+            update_response=$(curl -s -X PATCH -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$release_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${tag_name}")
 
             # Log the full response for debugging
             echo "Update response for $tag_name: $update_response"

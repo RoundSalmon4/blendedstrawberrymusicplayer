@@ -1,4 +1,4 @@
-name: Sync Old Releases to Codeberg
+name: Sync Releases to Codeberg
 
 on:
   workflow_dispatch:  # Trigger manually
@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v2
         with:
           fetch-depth: 0
 
@@ -26,10 +26,16 @@ jobs:
       - name: Gather Asset Names from GitHub Releases
         id: gather_assets
         run: |
-          # Retrieve all releases and their assets from GitHub
+          # Retrieve all releases from GitHub
           releases=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases")
-          if [[ $? -ne 0 || -z "$releases" ]]; then
+          if [[ $? -ne 0 ]]; then
             echo "Error: Failed to retrieve releases from GitHub."
+            exit 1
+          fi
+
+          # Check if releases are empty
+          if [[ -z "$releases" ]]; then
+            echo "No releases found in the repository."
             exit 1
           fi
 
@@ -39,13 +45,17 @@ jobs:
             _jq() {
               echo ${release} | base64 --decode | jq -r ${1}
             }
-            for asset in $(_jq '.assets | .[] | .name'); do
-              asset_names+=("$asset")
+            for asset in $(_jq '.assets | .[] | .name // empty'); do
+              [[ -n "$asset" ]] && asset_names+=("$asset")  # Add non-empty asset names
             done
           done
 
-          # Output the asset names to an environment variable
-          echo "assets=$(IFS=,; echo "${asset_names[*]}")" >> $GITHUB_ENV
+          # Output the asset names as a comma-separated string
+          if [[ ${#asset_names[@]} -eq 0 ]]; then
+            echo "No assets found in releases."
+          else
+            echo "assets=$(IFS=,; echo "${asset_names[*]}")" >> $GITHUB_ENV
+          fi
 
       - name: Download and Upload Assets
         run: |
@@ -59,7 +69,7 @@ jobs:
 
             # Download asset URL from the latest tag
             asset_url=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/assets?name=$asset_name" | jq -r '.[0].url')
-            if [[ "$asset_url" == "null" ]]; then
+            if [[ "$asset_url" == "null" || -z "$asset_url" ]]; then
               echo "Asset $asset_name not found in release list."
               continue
             fi
@@ -76,11 +86,14 @@ jobs:
           # Uploading to Codeberg
           for asset_name in "${assets[@]}"; do
             if [[ -f "$asset_name" ]]; then
-              release=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/1.0") # Replace with your tag logic here
+              release_id=""
+
+              # Check for a release with this tag on Codeberg
+              release=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/1.0")  # Replace with your tag logic
 
               if [[ "$release" == *"Not Found"* ]]; then
                 echo "Creating new release for tag."
-                release_data="{\"tag_name\":\"1.0\",\"name\":\"Release 1.0\",\"body\":\"Release for tag 1.0\"}" # Replace with your tag details
+                release_data="{\"tag_name\":\"1.0\",\"name\":\"Release 1.0\",\"body\":\"Release for tag 1.0\"}"  # Replace with your tag details
                 release_response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$release_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
                 release_id=$(echo "$release_response" | jq -r '.id')
               else

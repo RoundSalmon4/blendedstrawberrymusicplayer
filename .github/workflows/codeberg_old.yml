@@ -26,77 +26,45 @@ jobs:
       - name: Gather Asset Names from GitHub Releases
         id: gather_assets
         run: |
-          # Retrieve all releases from GitHub
           releases=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases")
           if [[ $? -ne 0 ]]; then
             echo "Error: Failed to retrieve releases from GitHub."
             exit 1
           fi
 
-          # Check if releases are empty
           if [[ -z "$releases" ]]; then
             echo "No releases found in the repository."
             exit 1
           fi
 
-          # Gather asset names into an array
           asset_names=()
           for release in $(echo "$releases" | jq -r '.[] | @base64'); do
             _jq() {
               echo ${release} | base64 --decode | jq -r ${1}
             }
             for asset in $(_jq '.assets | .[] | .name // empty'); do
-              [[ -n "$asset" ]] && asset_names+=("$asset")  # Add non-empty asset names
+              [[ -n "$asset" ]] && asset_names+=("$asset")
             done
           done
 
-          # Output the asset names as a comma-separated string to an environment variable
           if [[ ${#asset_names[@]} -eq 0 ]]; then
             echo "No assets found in releases."
+            exit 0
           else
             echo "assets=$(IFS=,; echo "${asset_names[*]}")" >> $GITHUB_ENV
-          fi
-
-      - name: Check Uploaded Assets on Codeberg
-        id: check_uploaded
-        run: |
-          codeberg_uploaded_assets=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
-          if [[ $? -ne 0 ]]; then
-            echo "Error: Failed to retrieve releases from Codeberg."
-            exit 1
-          fi
-
-          # Collect names of already uploaded assets
-          uploaded_assets=()
-          for release in $(echo "$codeberg_uploaded_assets" | jq -r '.[] | @base64'); do
-            _jq() {
-              echo ${release} | base64 --decode | jq -r ${1}
-            }
-            for asset in $(_jq '.assets | .[] | .name // empty'); do
-              [[ -n "$asset" ]] && uploaded_assets+=("$asset")  # Add non-empty asset names
-            done
-          done
-
-          # Output the uploaded asset names as a comma-separated string to an environment variable
-          if [[ ${#uploaded_assets[@]} -eq 0 ]]; then
-            echo "No assets uploaded on Codeberg."
-          else
-            echo "uploaded_assets=$(IFS=,; echo "${uploaded_assets[*]}")" >> $GITHUB_ENV
           fi
 
       - name: Download and Upload Assets
         run: |
           IFS=',' read -r -a assets <<< "${{ env.assets }}"
-          IFS=',' read -r -a uploaded <<< "${{ env.uploaded_assets }}"
 
           for asset_name in "${assets[@]}"; do
-            # Check if the asset has already been uploaded
-            if [[ " ${uploaded[*]} " =~ " $asset_name " ]]; then
-              echo "Asset $asset_name already exists on Codeberg, skipping download and upload."
+            if [[ -f "$asset_name" ]]; then
+              echo "Asset $asset_name already exists locally, skipping download."
               continue
             fi
 
-            # Download asset URL from GitHub
+            # Download asset URL from the latest tag
             asset_url=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/assets?name=$asset_name" | jq -r '.[0].url')
             if [[ "$asset_url" == "null" || -z "$asset_url" ]]; then
               echo "Asset $asset_name not found in release list."
@@ -112,25 +80,34 @@ jobs:
             fi
           done
 
-          # Upload each new asset to Codeberg
           for asset_name in "${assets[@]}"; do
-            if [[ -f "$asset_name" && ! " ${uploaded[*]} " =~ " $asset_name " ]]; then
-              release_id=""
+            if [[ -f "$asset_name" ]]; then
+              tag="1.0"  # Replace with your logic to get the actual tag
 
-              # Check for a release with the current tag on Codeberg
-              release=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/1.0")  # Replace with your tag logic
+              # Check if release exists on Codeberg
+              existing_assets=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/$tag" | jq -r '.assets | length')
+
+              if [[ "$existing_assets" -gt 0 ]]; then
+                echo "Assets already exist for release tag $tag. Skipping upload."
+                continue
+              fi
+
+              release_id=""
+              release=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/$tag")
 
               if [[ "$release" == *"Not Found"* ]]; then
-                echo "Creating new release for tag."
-                release_data="{\"tag_name\":\"1.0\",\"name\":\"Release 1.0\",\"body\":\"Release for tag 1.0\"}"  # Replace with your tag details
+                echo "Creating new release for tag $tag."
+                release_data="{\"tag_name\":\"$tag\",\"name\":\"Release $tag\",\"body\":\"Release for tag $tag\"}"
                 release_response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$release_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
                 release_id=$(echo "$release_response" | jq -r '.id')
               else
+                echo "Release for tag $tag found."
                 release_id=$(echo "$release" | jq -r '.id')
               fi
 
-              # Upload asset to Codeberg
               upload_url="https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/$release_id/assets?name=$asset_name"
+              echo "Uploading asset $asset_name to release for tag $tag."
+
               response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/octet-stream" --data-binary @"$asset_name" "$upload_url" -w "HTTPSTATUS:%{http_code}")
               http_code=$(echo "$response" | sed -e 's/HTTPSTATUS://')
 
@@ -140,6 +117,9 @@ jobs:
               fi
 
               echo "Uploaded $asset_name successfully."
+
+              # Optional: Add a slight delay to prevent rate limiting
+              sleep 2
             else
               echo "Asset $asset_name does not exist, skipping."
             fi

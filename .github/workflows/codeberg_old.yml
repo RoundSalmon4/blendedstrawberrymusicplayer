@@ -91,7 +91,7 @@ jobs:
           # Log the full response for debugging
           echo "Release check response: $release"
 
-          # Check if the response indicates that no release was found
+          # Check if the response indicates that the release was not found
           if [[ $(echo "$release" | jq -r '.message') == "Not Found" ]]; then
               echo "Creating new release for tag ${{ env.tag_name }}."
               release_data="{\"tag_name\":\"${{ env.tag_name }}\",\"name\":\"Release ${{ env.tag_name }}\",\"body\":\"Release for tag ${{ env.tag_name }}\"}"
@@ -102,7 +102,7 @@ jobs:
               release_id=$(echo "$release_response" | jq -r '.id')  # Extract release ID
 
               # Check if release ID creation was successful
-              if [ -z "$release_id" ]; then
+              if [ -z "$release_id" ] || [[ "$release_id" == "null" ]]; then
                 echo "Failed to create release. Response: $release_response"
                 exit 1
               fi
@@ -110,8 +110,8 @@ jobs:
               echo "Release for tag ${{ env.tag_name }} found."
               release_id=$(echo "$release" | jq -r '.id')  # Extract release ID
 
-              # If the ID is null here, there might be an issue with the API response
-              if [ -z "$release_id" ]; then
+              # Check for null release ID
+              if [ -z "$release_id" ] || [[ "$release_id" == "null" ]]; then
                 echo "Error: Release ID is null. Response: $release"
                 exit 1
               fi
@@ -144,3 +144,4 @@ jobs:
               echo "Asset $asset_name does not exist, skipping."
             fi
           done
+

@@ -21,6 +21,7 @@ jobs:
         run: |
           all_releases=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases")
           echo "$all_releases" | jq -r '.[] | select(.prerelease == false) | .tag_name' > releases.txt
+          echo "$all_releases" > all_releases.json  # Store all releases for later use
 
       - name: Process Releases
         run: |
@@ -45,8 +46,8 @@ jobs:
 
             echo "Updating release notes for tag: $tag_name with ID $release_id"
 
-            # Prepare the actual release notes from the GitHub release
-            actual_body=$(echo "$all_releases" | jq -r --arg tag_name "$tag_name" '.[] | select(.tag_name == $tag_name) | .body')
+            # Prepare to extract the actual body from the stored release data
+            actual_body=$(jq -r --arg tag_name "$tag_name" '.[] | select(.tag_name == $tag_name) | .body' all_releases.json)
             if [ -z "$actual_body" ]; then
               echo "No release notes found for tag $tag_name. Skipping..."
               continue

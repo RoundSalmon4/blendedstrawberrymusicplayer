@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - master
-  workflow_dispatch: # This enables manual triggering
+  workflow_dispatch:
 
 jobs:
   sync:
@@ -13,7 +13,7 @@ jobs:
       - name: Checkout the repository with full history
         uses: actions/checkout@v2
         with:
-          fetch-depth: 0  # Fetch all history for all branches and tags
+          fetch-depth: 0
 
       - name: Configure Git User
         run: |
@@ -25,6 +25,11 @@ jobs:
           echo "Cleaning up previous downloads..."
           rm -f *.dmg *.exe
           
+      - name: Remove LFS Tracking
+        run: |
+          git lfs uninstall
+          git lfs prune  # Optional: Clear any cached LFS files
+
       - name: Push to Codeberg
         env:
           CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}

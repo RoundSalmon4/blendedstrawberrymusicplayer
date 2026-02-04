@@ -31,6 +31,7 @@ jobs:
             fi
 
             echo "Processing release: $tag_name"
+            echo "Release notes body: $body"  # Debugging: Output the release notes
 
             # Check if the release exists on Codeberg
             release_check=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${tag_name}")
@@ -40,7 +41,10 @@ jobs:
               continue
             else
               echo "Updating release notes for tag: $tag_name"
-              update_data="{\"body\":\"${body}\"}"
+              echo "Payload for update: {\"body\":\"${body}\"}"  # Debugging: Show the payload being sent
+
+              update_data="{\"body\":\"$(echo "${body}" | jq -Rsa .)\"}"  # Properly format body for JSON
+
               update_response=$(curl -s -X PATCH -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$update_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${tag_name}")
 
               echo "Update response for $tag_name: $update_response"

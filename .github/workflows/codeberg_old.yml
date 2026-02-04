@@ -32,22 +32,18 @@ jobs:
       - name: Find Unuploaded Release
         id: find_unuploaded
         run: |
-          found=0
           while IFS= read -r tag_name; do
-            # Check if release exists on Codeberg
             release=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/$tag_name")
             if [[ "$release" == *"Not Found"* ]]; then
               echo "Found unuploaded release tag: $tag_name"
               echo "tag_name=$tag_name" >> $GITHUB_ENV
-              found=1
-              break  # Stop after finding the first unuploaded release
+              exit 0  # Found an unuploaded release, exit successfully
             fi
           done < releases.txt
           
-          if [ $found -eq 0 ]; then
-            echo "No unuploaded release found."
-            exit 1
-          fi
+          # If the loop completes without finding an unuploaded release
+          echo "No unuploaded release found."
+          exit 1
 
       - name: Download Assets
         run: |

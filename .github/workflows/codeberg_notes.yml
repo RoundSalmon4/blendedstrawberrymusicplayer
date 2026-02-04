@@ -32,33 +32,33 @@ jobs:
             echo "Processing release: $tag_name"
             echo "Release notes body length: ${#body}"
 
-            # Check if the release exists on Codeberg
-            release_check=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${tag_name}")
-
-            if [[ $(echo "$release_check" | jq -r '.message') == "The target couldn't be found." ]]; then
-              echo "Release $tag_name not found on Codeberg. Skipping..."
+            # Check if release exists on Codeberg
+            release_check=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
+            if echo "$release_check" | jq -e ".[] | select(.tag_name == \"$tag_name\")" > /dev/null; then
+              echo "Release for tag $tag_name already exists on Codeberg. Proceeding to update..."
             else
-              echo "Updating release notes for tag: $tag_name"
+              echo "Release $tag_name does not exist on Codeberg. Skipping..."
+              continue
+            fi
 
-              # For testing, continue to use a simplified body
-              test_body="This is a test message for version $tag_name."
-              update_data=$(jq -n --arg body "$test_body" '{body: $body}')
+            echo "Updating release notes for tag: $tag_name"
 
-              echo "Payload for update: $update_data"
-              
-              # Send PATCH request 
-              update_response=$(curl -s -X PATCH -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$update_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${tag_name}")
+            # Create payload 
+            update_data=$(jq -n --arg body "$body" '{body: $body}')
 
-              # Log the full response for debugging
-              echo "Update response for $tag_name: $update_response"
-              echo "Full response: $(echo "$update_response" | jq .)"
+            echo "Payload for update: $update_data"
+            
+            # Send PATCH request 
+            update_response=$(curl -s -X PATCH -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$update_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${tag_name}")
 
-              # Enhanced error handling
-              error_message=$(echo "$update_response" | jq -r '.message // empty')
-              if [[ -n $error_message ]]; then
-                echo "Error response from Codeberg: $error_message"
-              else
-                echo "Successfully updated release notes for $tag_name."
-              fi
+            # Log the full response for debugging
+            echo "Update response for $tag_name: $update_response"
+            
+            # Enhanced error handling
+            error_message=$(echo "$update_response" | jq -r '.message // empty')
+            if [[ -n $error_message ]]; then
+              echo "Error response from Codeberg: $error_message"
+            else
+              echo "Successfully updated release notes for $tag_name."
             fi
           done

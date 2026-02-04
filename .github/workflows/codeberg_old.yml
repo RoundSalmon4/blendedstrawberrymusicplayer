@@ -33,15 +33,14 @@ jobs:
             exit 1
           fi
           echo "$releases" > releases.json
-          echo "total_releases=$total_releases" >> $GITHUB_ENV
 
       - name: Upload Assets for Each Release
         run: |
-          total_releases=${{ env.total_releases }}
+          total_releases=$(jq '. | length' releases.json)
+          # Start iterating from the second-oldest release (index 1)
           for (( i=1; i<total_releases; i++ )); do
             release=$(jq ".[$i]" releases.json)
             tag_name=$(echo "$release" | jq -r '.tag_name // empty')
-
             if [ -z "$tag_name" ]; then
               echo "No valid tag name found for release index $i."
               continue
@@ -98,7 +97,7 @@ jobs:
                 fi
                 
                 echo "Uploaded $asset_name successfully."
-                sleep 2
+                sleep 2  # Optional: Delay to prevent rate limiting
               else
                 echo "Asset $asset_name does not exist for release $tag_name, skipping."
               fi

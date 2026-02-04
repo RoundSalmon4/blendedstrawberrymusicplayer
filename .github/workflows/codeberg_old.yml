@@ -41,6 +41,7 @@ jobs:
           for (( i=1; i<total_releases; i++ )); do
             release=$(jq ".[$i]" releases.json)
             tag_name=$(echo "$release" | jq -r '.tag_name // empty')
+
             if [ -z "$tag_name" ]; then
               echo "No valid tag name found for release index $i."
               continue
@@ -92,6 +93,9 @@ jobs:
                 echo "Upload response for $asset_name: $response"
                 
                 if [[ "$http_code" -ne 201 ]]; then
+                  if [[ "$response" == *"Not Found"* ]]; then
+                    echo "Release ID not found for $tag_name. Please verify the release exists."
+                  fi
                   echo "Failed to upload $asset_name. HTTP Status: $http_code. Response: $response"
                   exit 1
                 fi

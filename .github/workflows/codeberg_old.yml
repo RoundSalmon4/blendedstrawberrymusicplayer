@@ -36,28 +36,31 @@ jobs:
 
       - name: Check and Upload Assets
         run: |
-          # Iterate through releases
-          for release in $(jq -r '.[] | @base64' releases.json); do
-            _jq() {
-              echo ${release} | base64 --decode | jq -r ${1}
-            }
+          # Iterate through releases in the JSON file
+          while IFS= read -r release; do
+            # Extract tag_name
+            tag=$(echo "$release" | grep -oP '"tag_name":\s*"\K[^"]*')
 
-            tag=$(_jq '.tag_name')
+            echo "Checking release tag: $tag"
 
             # Check for existing assets on Codeberg
-            existing_assets=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/$tag" | jq -r '.assets | .[] | select(.name) | length')
+            existing_assets=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/$tag" | grep -o '"name":' | wc -l)
 
-            if [[ -n "$existing_assets" ]]; then
+            if [[ "$existing_assets" -gt 0 ]]; then
               echo "Assets already exist for release tag $tag. Skipping upload."
               continue
             fi
 
             # Download and upload assets
-            for asset in $(_jq '.assets | .[] | .browser_download_url // empty'); do
-              asset_name=$(_jq '.assets | .[] | .name // empty')
-              echo "Downloading asset: $asset_name from: $asset"
+            asset_urls=$(echo "$release" | grep -oP '"browser_download_url":\s*"\K[^"]*')
+            asset_names=$(echo "$release" | grep -oP '"name":\s*"\K[^"]*')
 
-              if curl -L -O -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$asset"; then
+            IFS=$'\n' # Set the Internal Field Separator to newline for iteration
+            for asset_url in $asset_urls; do
+              asset_name=$(echo "$asset_names" | head -n 1)  # Get the first asset name
+              echo "Downloading asset: $asset_name from: $asset_url"
+
+              if curl -L -O -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$asset_url"; then
                 echo "$asset_name downloaded successfully."
               else
                 echo "Failed to download $asset_name. Exiting."
@@ -77,5 +80,8 @@ jobs:
               fi
 
               echo "Uploaded $asset_name successfully."
+
+              # Remove the asset name from the list so the next iteration uses the next one
+              asset_names=$(echo "$asset_names" | tail -n +2)
             done
-          done
+          done < <(echo "$releases" | grep -oP '\{.*?\}' | tr -d '\n')

@@ -50,24 +50,53 @@ jobs:
             done
           done
 
-          # Output the asset names as a comma-separated string
+          # Output the asset names as a comma-separated string to an environment variable
           if [[ ${#asset_names[@]} -eq 0 ]]; then
             echo "No assets found in releases."
           else
             echo "assets=$(IFS=,; echo "${asset_names[*]}")" >> $GITHUB_ENV
           fi
 
+      - name: Check Uploaded Assets on Codeberg
+        id: check_uploaded
+        run: |
+          codeberg_uploaded_assets=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
+          if [[ $? -ne 0 ]]; then
+            echo "Error: Failed to retrieve releases from Codeberg."
+            exit 1
+          fi
+
+          # Collect names of already uploaded assets
+          uploaded_assets=()
+          for release in $(echo "$codeberg_uploaded_assets" | jq -r '.[] | @base64'); do
+            _jq() {
+              echo ${release} | base64 --decode | jq -r ${1}
+            }
+            for asset in $(_jq '.assets | .[] | .name // empty'); do
+              [[ -n "$asset" ]] && uploaded_assets+=("$asset")  # Add non-empty asset names
+            done
+          done
+
+          # Output the uploaded asset names as a comma-separated string to an environment variable
+          if [[ ${#uploaded_assets[@]} -eq 0 ]]; then
+            echo "No assets uploaded on Codeberg."
+          else
+            echo "uploaded_assets=$(IFS=,; echo "${uploaded_assets[*]}")" >> $GITHUB_ENV
+          fi
+
       - name: Download and Upload Assets
         run: |
           IFS=',' read -r -a assets <<< "${{ env.assets }}"
+          IFS=',' read -r -a uploaded <<< "${{ env.uploaded_assets }}"
 
           for asset_name in "${assets[@]}"; do
-            if [[ -f "$asset_name" ]]; then
-              echo "Asset $asset_name already exists locally, skipping download."
+            # Check if the asset has already been uploaded
+            if [[ " ${uploaded[*]} " =~ " $asset_name " ]]; then
+              echo "Asset $asset_name already exists on Codeberg, skipping download and upload."
               continue
             fi
 
-            # Download asset URL from the latest tag
+            # Download asset URL from GitHub
             asset_url=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/assets?name=$asset_name" | jq -r '.[0].url')
             if [[ "$asset_url" == "null" || -z "$asset_url" ]]; then
               echo "Asset $asset_name not found in release list."
@@ -83,12 +112,12 @@ jobs:
             fi
           done
 
-          # Uploading to Codeberg
+          # Upload each new asset to Codeberg
           for asset_name in "${assets[@]}"; do
-            if [[ -f "$asset_name" ]]; then
+            if [[ -f "$asset_name" && ! " ${uploaded[*]} " =~ " $asset_name " ]]; then
               release_id=""
 
-              # Check for a release with this tag on Codeberg
+              # Check for a release with the current tag on Codeberg
               release=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/1.0")  # Replace with your tag logic
 
               if [[ "$release" == *"Not Found"* ]]; then

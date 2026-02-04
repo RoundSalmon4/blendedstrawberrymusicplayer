@@ -1,5 +1,24 @@
+name: Copy Release Notes to Codeberg
+
+on:
+  workflow_dispatch:  # Trigger manually
+
+permissions:
+  contents: read  # Allow action to read from repository
+  deployments: write
+
+jobs:
+  sync_release_notes:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
       - name: Get Releases from GitHub and Copy to Codeberg
         run: |
+          # Fetch releases from GitHub
           releases=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases")
 
           echo "$releases" | jq -c '.[] | select(.prerelease == false)' | while read -r release; do
@@ -14,7 +33,7 @@
             echo "Processing release: $tag_name"
             echo "Release notes body: $body"
 
-            # Check for existing release on Codeberg
+            # Check if the release exists on Codeberg
             release_check=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${tag_name}")
 
             if [[ $(echo "$release_check" | jq -r '.message') == "The target couldn't be found." ]]; then
@@ -22,16 +41,17 @@
             else
               echo "Updating release notes for tag: $tag_name"
 
-              # Escaping body properly for safe JSON inclusion
+              # Create a properly formatted payload
               update_data=$(jq -n --arg body "$body" '{body: $body}')
 
               echo "Payload for update: $update_data"
 
+              # Send a PATCH request to update the release notes
               update_response=$(curl -s -X PATCH -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$update_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${tag_name}")
 
               echo "Update response for $tag_name: $update_response"
 
-              # Additional error logging
+              # Check for error in the response
               if [[ $(echo "$update_response" | jq -r '.message') != null ]]; then
                 echo "Error response from Codeberg: $update_response"
               fi

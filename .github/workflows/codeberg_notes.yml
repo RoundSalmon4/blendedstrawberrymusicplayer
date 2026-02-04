@@ -1,10 +1,10 @@
-name: Copy Release Notes to Codeberg
+name: Sync Releases Notes to Codeberg
 
 on:
   workflow_dispatch:  # Trigger manually
 
 permissions:
-  contents: read  # Allow action to read from repository
+  contents: read
   deployments: write
 
 jobs:
@@ -16,53 +16,41 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Get Releases from GitHub and Copy to Codeberg
+      - name: Get Releases from GitHub
+        id: get_releases
         run: |
-          releases=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases")
+          all_releases=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases")
+          echo "$all_releases" | jq -r '.[] | select(.prerelease == false) | .tag_name' > releases.txt
 
-          echo "$releases" | jq -c '.[] | select(.prerelease == false)' | while read -r release; do
-            tag_name=$(echo "$release" | jq -r '.tag_name')
-            body=$(echo "$release" | jq -r '.body')
+      - name: Process Releases
+        run: |
+          while IFS= read -r tag_name; do
+            # Check if a release exists on Codeberg
+            release_check=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${tag_name}")
 
-            if [ -z "$tag_name" ]; then
-              echo "No tag_name found in release data. Skipping..."
-              continue
-            fi
-
-            echo "Processing release: $tag_name"
-            echo "Release notes body length: ${#body}"
-
-            # Check if release exists on Codeberg
-            release_check=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
-            if echo "$release_check" | jq -e ".[] | select(.tag_name == \"$tag_name\")" > /dev/null; then
-              echo "Release for tag $tag_name already exists on Codeberg. Proceeding to update..."
-            else
-              echo "Release $tag_name does not exist on Codeberg. Skipping..."
+            echo "Checking if release for tag $tag_name exists in Codeberg..."
+            if [[ $(echo "$release_check" | jq -r '.message') == "The target couldn't be found." ]]; then
+              echo "Release for tag $tag_name does not exist. Skipping..."
               continue
             fi
 
             echo "Updating release notes for tag: $tag_name"
 
-            # Construct the release data with tag_name and body
-            release_data=$(jq -n \
-              --arg tag_name "$tag_name" \
-              --arg name "Release $tag_name" \
-              --arg body "$body" \
-              '{tag_name: $tag_name, name: $name, body: $body}')
+            # Prepare the payload for the update
+            body_data="Version for $tag_name\n\nRelease notes here."
+            release_data=$(jq -n --arg tag_name "$tag_name" --arg name "Release $tag_name" --arg body "$body_data" '{tag_name: $tag_name, name: $name, body: $body}')
 
             echo "Payload for update: $release_data"
-            
-            # Send PATCH request 
+
+            # Send the PATCH request to update the release
             update_response=$(curl -s -X PATCH -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$release_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${tag_name}")
 
-            # Log the full response for debugging
+            # Log the response for debugging
             echo "Update response for $tag_name: $update_response"
-            
-            # Enhanced error handling
             error_message=$(echo "$update_response" | jq -r '.message // empty')
             if [[ -n $error_message ]]; then
               echo "Error response from Codeberg: $error_message"
             else
               echo "Successfully updated release notes for $tag_name."
             fi
-          done
+          done < releases.txt

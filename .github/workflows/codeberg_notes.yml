@@ -19,15 +19,12 @@ jobs:
       - name: Get Releases from GitHub
         id: get_releases
         run: |
-          releases=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases")
-          echo "$releases" | jq -r '.[] | select(.prerelease == false) | {tag_name: .tag_name, body: .body}' > releases.json
-          echo "::set-output name=releases::$(cat releases.json)"
+          curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases" \
+          | jq -r '.[] | select(.prerelease == false) | {tag_name: .tag_name, body: .body}' > releases.json
 
       - name: Copy Release Notes to Codeberg
         run: |
-          github_releases=$(cat releases.json)
-
-          for release in $(echo "${github_releases}" | jq -c '.[]'); do
+          for release in $(jq -c '.[]' releases.json); do
             tag_name=$(echo "$release" | jq -r '.tag_name')
             body=$(echo "$release" | jq -r '.body')
             
@@ -43,7 +40,6 @@ jobs:
 
             echo "Updating release notes for tag: $tag_name"
             update_data="{\"body\":\"${body}\"}"
-            update_response=$(curl -s -X PATCH -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$update_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${tag_name}/update")
+            update_response=$(curl -s -X PATCH -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$update_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${tag_name}")
 
             echo "Update response for $tag_name: $update_response"
-          done

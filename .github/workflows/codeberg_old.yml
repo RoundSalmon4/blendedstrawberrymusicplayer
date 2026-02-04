@@ -88,7 +88,6 @@ jobs:
           echo "Checking for release with tag ${{ env.tag_name }}."
           release=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${{ env.tag_name }}")
 
-          # Create a new release if not found
           if [[ "$release" == *"Not Found"* ]]; then
               echo "Creating new release for tag ${{ env.tag_name }}."
               release_data="{\"tag_name\":\"${{ env.tag_name }}\",\"name\":\"Release ${{ env.tag_name }}\",\"body\":\"Release for tag ${{ env.tag_name }}\"}"
@@ -99,6 +98,9 @@ jobs:
               echo "Release for tag ${{ env.tag_name }} found."
               release_id=$(echo "$release" | jq -r '.id')  # Extract release ID
           fi
+
+          # Log the release ID
+          echo "Using release ID: $release_id"
 
           # Ensure the release ID is valid before proceeding to upload assets
           if [ -z "$release_id" ]; then
@@ -118,6 +120,10 @@ jobs:
               
               if [[ "$http_code" -ne 201 ]]; then
                 echo "Failed to upload $asset_name. HTTP Status: $http_code. Response: $response"
+                # Log additional information
+                if [ "$http_code" -eq 404 ]; then
+                  echo "Check if the target release ID $release_id is valid or if the asset name is correct."
+                fi
                 exit 1
               fi
               

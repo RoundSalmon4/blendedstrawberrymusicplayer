@@ -86,42 +86,35 @@ jobs:
       - name: Upload Assets to Codeberg
         run: |
           echo "Checking for release with tag ${{ env.tag_name }}."
-          release=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${{ env.tag_name }}")
+          release_check=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${{ env.tag_name }}")
 
           # Log the full response for debugging
-          echo "Release check response: $release"
+          echo "Release check response: $release_check"
 
-          # If the response indicates a 'Not Found', create a new release
-          if [[ $(echo "$release" | jq -r '.message') == "Not Found" ]]; then
+          if [[ $(echo "$release_check" | jq -r '.message') == "The target couldn't be found." ]]; then
               echo "Creating new release for tag ${{ env.tag_name }}."
               release_data="{\"tag_name\":\"${{ env.tag_name }}\",\"name\":\"Release ${{ env.tag_name }}\",\"body\":\"Release for tag ${{ env.tag_name }}\"}"
               release_response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$release_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
               
               # Log the response from the release creation
               echo "Release creation response: $release_response"
-              release_id=$(echo "$release_response" | jq -r '.id')  # Extract release ID
+              release_id=$(echo "$release_response" | jq -r '.id')
 
-              # Check if release ID creation was successful
               if [ -z "$release_id" ] || [[ "$release_id" == "null" ]]; then
                 echo "Failed to create release. Response: $release_response"
                 exit 1
               fi
           else
-              # Instead of assuming the release is found, check the full response
-              release_id=$(echo "$release" | jq -r '.id')  # Extract release ID
-              # Log the response to ensure we understand its structure
-              echo "Full release details: $release"
-
-              # If the ID is null, report the error and exit
+              # If the release exists, extract its ID.
+              release_id=$(echo "$release_check" | jq -r '.id')
               if [ -z "$release_id" ] || [[ "$release_id" == "null" ]]; then
-                echo "Error: Release ID is null. Response: $release"
+                echo "Error: Release ID is null. Response: $release_check"
                 exit 1
               fi
 
               echo "Release for tag ${{ env.tag_name }} found."
           fi
 
-          # Log the release ID
           echo "Using release ID: $release_id"
 
           for asset_name in *.dmg *.exe; do
@@ -141,12 +134,10 @@ jobs:
                 fi
                 exit 1
               fi
-              
+
               echo "Uploaded $asset_name successfully."
               sleep 2
             else
               echo "Asset $asset_name does not exist, skipping."
             fi
           done
-
-

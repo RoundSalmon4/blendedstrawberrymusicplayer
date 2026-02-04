@@ -28,31 +28,41 @@ jobs:
         run: |
           all_releases=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases")
           echo "$all_releases" | jq -r '.[] | select(.prerelease == false) | .tag_name' > releases.txt
-          
+
       - name: Find Unuploaded Release
         id: find_unuploaded
         run: |
-          while read tag_name; do
+          found=0
+          while IFS= read -r tag_name; do
+            # Check if release exists on Codeberg
             release=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/$tag_name")
             if [[ "$release" == *"Not Found"* ]]; then
               echo "Found unuploaded release tag: $tag_name"
               echo "tag_name=$tag_name" >> $GITHUB_ENV
-              exit 0  # Exit after finding the first unuploaded release
+              found=1
+              break  # Stop after finding the first unuploaded release
             fi
           done < releases.txt
           
-          echo "No unuploaded release found."  # If none is found, print message
-          exit 1
+          if [ $found -eq 0 ]; then
+            echo "No unuploaded release found."
+            exit 1
+          fi
 
       - name: Download Assets
         run: |
+          if [ -z "${{ env.tag_name }}" ]; then
+            echo "No tag found for downloading assets."
+            exit 1
+          fi
+
           latest_release=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ env.tag_name }}")
           
           if [ -z "$latest_release" ]; then
             echo "No latest release found."
             exit 1
           fi
-          
+
           echo "$latest_release" | jq -r '.assets[] | "\(.name) \(.browser_download_url)"' > assets.txt
 
           while IFS= read -r line; do

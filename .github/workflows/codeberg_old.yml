@@ -1,4 +1,4 @@
-name: Sync Old Releases to Codeberg
+name: Sync Releases to Codeberg
 
 on:
   workflow_dispatch:  # Trigger manually
@@ -23,49 +23,21 @@ jobs:
           echo "Cleaning up previous downloads..."
           rm -f *.dmg *.exe
 
-      - name: Get Releases List
-        id: get_releases
+      - name: Get Latest Release Info
+        id: get_release
         run: |
-          all_releases=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases")
-          echo "$all_releases" | jq -r '.[] | select(.prerelease == false) | .tag_name' > releases.txt
-
-      - name: Process Releases
-        run: |
-          found_unuploaded_release=0
-          while IFS= read -r tag_name; do
-            # Check if a release exists on Codeberg
-            release_check=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
-            if echo "$release_check" | jq -e ".[] | select(.tag_name == \"$tag_name\")" > /dev/null; then
-              echo "Release for tag $tag_name already exists on Codeberg. Skipping..."
-            else
-              echo "Found unuploaded release tag: $tag_name"
-              echo "tag_name=$tag_name" >> $GITHUB_ENV
-              found_unuploaded_release=1
-              break  # Found an unuploaded release, exit the loop
-            fi
-          done < releases.txt
-
-          if [ $found_unuploaded_release -eq 0 ]; then
-            echo "No unuploaded release found."
-            exit 1
-          fi
-
-      - name: Download Assets
-        run: |
-          if [ -z "${{ env.tag_name }}" ]; then
-            echo "No tag found for downloading assets."
-            exit 1
-          fi
-
-          latest_release=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ env.tag_name }}")
-          
-          if [ -z "$latest_release" ]; then
+          latest_release=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/latest")
+          tag_name=$(echo "$latest_release" | jq -r '.tag_name // empty')
+          if [ -z "$tag_name" ]; then
             echo "No latest release found."
             exit 1
           fi
-
+          echo "Latest release tag: $tag_name"
+          echo "tag_name=$tag_name" >> $GITHUB_ENV
           echo "$latest_release" | jq -r '.assets[] | "\(.name) \(.browser_download_url)"' > assets.txt
 
+      - name: Download Assets
+        run: |
           while IFS= read -r line; do
             asset_name=$(echo "$line" | awk '{print $1}')
             asset_url=$(echo "$line" | awk '{print $2}')
@@ -86,36 +58,32 @@ jobs:
       - name: Upload Assets to Codeberg
         run: |
           echo "Checking for release with tag ${{ env.tag_name }}."
-          release_response=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${{ env.tag_name }}")
-          
-          # Create a new release if not found
-          if [[ $(echo "$release_response" | jq -r '.message') == "Not Found" ]]; then
+          release=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${{ env.tag_name }}")
+
+          # Extract release ID from the response
+          if [[ "$(echo "$release" | jq -r '.message')" == "Not Found" ]]; then
               echo "Creating new release for tag ${{ env.tag_name }}."
               release_data="{\"tag_name\":\"${{ env.tag_name }}\",\"name\":\"Release ${{ env.tag_name }}\",\"body\":\"Release for tag ${{ env.tag_name }}\"}"
               release_response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$release_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases")
-              
-              # Check for creation success
-              if [[ $(echo "$release_response" | jq -r '.id') == "null" ]]; then 
-                echo "Error creating release: $release_response"
-                exit 1
+              release_id=$(echo "$release_response" | jq -r '.id // empty')
+              if [ -z "$release_id" ]; then
+                  echo "Error creating release: $release_response"
+                  exit 1
               fi
-              
-              release_id=$(echo "$release_response" | jq -r '.id')  # Extract release ID
           else
               echo "Release for tag ${{ env.tag_name }} found."
-              release_id=$(echo "$release_response" | jq -r '.id')  # Extract release ID
+              release_id=$(echo "$release" | jq -r '.id // empty')
               if [ -z "$release_id" ]; then
-                echo "Error: Failed to retrieve release ID."
-                exit 1
+                  echo "Error retrieving release ID."
+                  exit 1
               fi
           fi
 
-          # Proceed to upload assets
           for asset_name in *.dmg *.exe; do
             if [[ -f "$asset_name" ]]; then
-              upload_url="https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/$release_id/assets?name=$asset_name"
+              upload_url="https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/$release_id/assets?name=${asset_name}"
               echo "Uploading asset $asset_name to release for tag ${{ env.tag_name }}."
-              
+
               response=$(curl -s -X POST -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/octet-stream" --data-binary @"$asset_name" "$upload_url" -w "HTTPSTATUS:%{http_code}")
               http_code=$(echo "$response" | sed -e 's/HTTPSTATUS://')
 
@@ -125,9 +93,9 @@ jobs:
                 echo "Failed to upload $asset_name. HTTP Status: $http_code. Response: $response"
                 exit 1
               fi
-
+              
               echo "Uploaded $asset_name successfully."
-              sleep 2
+              sleep 2  # Optional: Add a slight delay to prevent rate limiting
             else
               echo "Asset $asset_name does not exist, skipping."
             fi

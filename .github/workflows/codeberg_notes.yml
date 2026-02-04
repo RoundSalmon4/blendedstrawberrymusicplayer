@@ -18,7 +18,6 @@ jobs:
 
       - name: Get Releases from GitHub and Copy to Codeberg
         run: |
-          # Fetch releases from GitHub
           releases=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases")
 
           echo "$releases" | jq -c '.[] | select(.prerelease == false)' | while read -r release; do
@@ -31,22 +30,26 @@ jobs:
             fi
 
             echo "Processing release: $tag_name"
-            echo "Release notes body: $body"  # Debugging: Output the release notes
+            echo "Release notes body: $body"
 
             # Check if the release exists on Codeberg
             release_check=$(curl -s -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${tag_name}")
 
             if [[ $(echo "$release_check" | jq -r '.message') == "The target couldn't be found." ]]; then
               echo "Release $tag_name not found on Codeberg. Skipping..."
-              continue
             else
               echo "Updating release notes for tag: $tag_name"
-              echo "Payload for update: {\"body\":\"${body}\"}"  # Debugging: Show the payload being sent
+              echo "Payload for update: {\"body\":\"$(echo "${body}" | jq -Rsa .)\"}"
 
-              update_data="{\"body\":\"$(echo "${body}" | jq -Rsa .)\"}"  # Properly format body for JSON
+              update_data="{\"body\":\"$(echo "${body}" | jq -Rsa .)\"}"
 
               update_response=$(curl -s -X PATCH -H "Authorization: token ${{ secrets.CODEBERG_TOKEN }}" -H "Content-Type: application/json" -d "$update_data" "https://codeberg.org/api/v1/repos/unwanted9855/blended-strawberry/releases/tags/${tag_name}")
 
               echo "Update response for $tag_name: $update_response"
+
+              # Additional logging for debugging
+              if [[ $(echo "$update_response" | jq -r '.message') != null ]]; then
+                echo "Error response from Codeberg: $update_response"
+              fi
             fi
           done

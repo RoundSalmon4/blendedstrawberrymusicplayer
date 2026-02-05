@@ -2,6 +2,9 @@
 
 This project provides platform-specific builds of the [Strawberry Music Player](https://github.com/strawberrymusicplayer/strawberry).
 
+## Codeberg Mirror
+For those interested, you can find a mirror of this project on [Codeberg](https://codeberg.org/unwanted9855/blended-strawberry).
+
 ## Original Authors
 - **Jonas K.** - [GitHub Profile](https://github.com/jonask)
 - **Other Contributors** - See the [Contributors page](https://github.com/strawberrymusicplayer/strawberry/graphs/contributors) for a full list of contributors.

@@ -1,0 +1,76 @@
+name: CI/CD Workflow
+
+on:
+  workflow_dispatch:  # Allows manual triggering of the workflow
+
+permissions:
+  contents: write  # Allow the workflow to read and write to the repository
+  issues: write  # Optional: Allow writing to issues
+  pull-requests: write  # Optional: Allow writing to pull requests
+  checks: write  # Optional: Allow writing to checks
+  deployments: write  # Optional: Allow writing to deployments
+
+jobs:
+  update:  # Job 1: Update from upstream
+    name: Update from upstream  # Display name for the job
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2  
+        with:
+          ref: master  # Specify the master branch
+        
+      - name: Run Update Action
+        uses: RoundSalmon4/update@master  # Specify the branch as master
+
+  build:  # Job 2: Build the application
+    name: Build  # Display name for the job
+    runs-on: ubuntu-latest
+    needs: update  # This job will run after the update job
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2  
+        with:
+          ref: master  # Specify the master branch
+        
+      - name: Run Build Action
+        uses: RoundSalmon4/build@master  # Specify the branch as master
+
+  codeberg:  # Job 3: Interact with Codeberg
+    name: Sync Codeberg Repo # Display name for the job
+    runs-on: ubuntu-latest
+    needs: build  # This job will run after the build job
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2  
+        with:
+          ref: master  # Specify the master branch
+        
+      - name: Run Codeberg Action
+        uses: RoundSalmon4/codeberg@master  # Specify the branch as master
+
+  codeberg_release:  # Job 4: Release to Codeberg
+    name: Add Codeberg Release  # Display name for the job
+    runs-on: ubuntu-latest
+    needs: codeberg  # This job will run after the codeberg job
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2  
+        with:
+          ref: master  # Specify the master branch
+        
+      - name: Run Codeberg Release Action
+        uses: RoundSalmon4/codeberg_release@master  # Specify the branch as master
+
+  codeberg_notes:  # Job 5: Manage Codeberg Notes
+    name: Add Codeberg Notes  # Display name for the job
+    runs-on: ubuntu-latest
+    needs: codeberg_release  # This job will run after the codeberg_release job
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2  
+        with:
+          ref: master  # Specify the master branch
+        
+      - name: Run Codeberg Notes Action
+        uses: RoundSalmon4/codeberg_notes@master  # Specify the branch as master

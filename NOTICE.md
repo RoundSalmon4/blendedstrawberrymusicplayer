@@ -16,4 +16,4 @@ This project is licensed under the GNU General Public License v3.0 (GPLv3). You 
 While the original source code remains unchanged, I have implemented modifications to the build process to generate Windows and MacOS versions. These builds are not available directly from the main project for all users.
 
 ## Acknowledgments
-We thank the original authors and contributors for their hard work and dedication in creating the Strawberry Music Player.
+This project is an unofficial repository for building macOS and Windows versions of the Strawberry Music Player. We thank the original authors and contributors for their hard work and dedication in creating the Strawberry Music Player.

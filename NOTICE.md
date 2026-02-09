@@ -13,7 +13,7 @@ For those interested, you can find a mirror of this project on [Codeberg](https:
 This project is licensed under the GNU General Public License v3.0 (GPLv3). You can view the full license text in the `COPYING` file.
 
 ## Transparency
-No changes have been made to original source code.
+While the original source code remains unchanged, I have implemented modifications to the build process to generate Windows and MacOS versions. These builds are not available directly from the main project for all users.
 
 ## Acknowledgments
 We thank the original authors and contributors for their hard work and dedication in creating the Strawberry Music Player.

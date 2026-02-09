@@ -48,10 +48,15 @@ jobs:
           cd ./repo
           git checkout upstream/master -- . ':!/.github/workflows/*' ':!NOTICE.md'
 
+      - name: Add your notice to README.md
+        run: |
+          cd ./repo
+          echo -e "# UNOFFICIAL repository for building macOS and Windows versions of the Strawberry Music Player\n\n$(cat README.md)" > README.md
+
       - name: Add changes to staging
         run: |
           cd ./repo
-          git add .
+          git add README.md  # Only stage README.md for commit
 
       - name: Commit changes
         run: |

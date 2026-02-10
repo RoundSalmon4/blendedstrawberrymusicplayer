@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v2  
+        uses: actions/checkout@v6  
         with:
           ref: master  # Specify the master branch
         
@@ -29,7 +29,7 @@ jobs:
     needs: update  # This job will run after the update job
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v2  
+        uses: actions/checkout@v6  
         with:
           ref: master  # Specify the master branch
         
@@ -42,7 +42,7 @@ jobs:
     needs: build  # This job will run after the build job
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v2  
+        uses: actions/checkout@v6  
         with:
           ref: master  # Specify the master branch
         
@@ -55,7 +55,7 @@ jobs:
     needs: codeberg  # This job will run after the codeberg job
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v2  
+        uses: actions/checkout@v6  
         with:
           ref: master  # Specify the master branch
         
@@ -68,7 +68,7 @@ jobs:
     needs: codeberg_release  # This job will run after the codeberg_release job
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v2  
+        uses: actions/checkout@v6  
         with:
           ref: master  # Specify the master branch
         

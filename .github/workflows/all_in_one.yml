@@ -11,9 +11,22 @@ permissions:
   deployments: write
 
 jobs:
-  modify_git_revision:  # Job to modify INCLUDE_GIT_REVISION
+  update:  # Job 1: Update from upstream
+    name: Update from upstream
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6  
+        with:
+          ref: master
+        
+      - name: Run Update Action
+        uses: RoundSalmon4/update@master
+
+  modify_git_revision:  # Job 2: Modify INCLUDE_GIT_REVISION
     name: Modify Git Revision
     runs-on: ubuntu-latest
+    needs: update  # This job will run after the update job
     steps:
       - name: Checkout Code
         uses: actions/checkout@v6  
@@ -24,25 +37,10 @@ jobs:
         run: |
           sed -i 's/set(INCLUDE_GIT_REVISION ON)/set(INCLUDE_GIT_REVISION OFF)/' cmake/Version.cmake
 
-  update:
-    name: Update from upstream
-    runs-on: ubuntu-latest
-    needs: modify_git_revision  # This job will run after modifying the git revision
-    if: ${{ github.event.inputs.job1_enabled == 'true' }}
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v6  
-        with:
-          ref: master
-        
-      - name: Run Update Action
-        uses: RoundSalmon4/update@master
-
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: update
-    if: ${{ github.event.inputs.job1_enabled == 'true' }}
+    needs: modify_git_revision  # This job will run after modifying git revision
     steps:
       - name: Checkout Code
         uses: actions/checkout@v6  
@@ -94,7 +92,7 @@ jobs:
   reset_git_revision:  # Final job to reset INCLUDE_GIT_REVISION
     name: Reset Git Revision
     runs-on: ubuntu-latest
-    needs: codeberg_notes  # This job runs after codeberg_notes
+    needs: codeberg_notes
     steps:
       - name: Checkout Code
         uses: actions/checkout@v6  

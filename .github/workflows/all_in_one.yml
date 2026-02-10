@@ -1,78 +1,106 @@
 name: CI/CD Workflow
 
 on:
-  workflow_dispatch:  # Allows manual triggering of the workflow
+  workflow_dispatch:
 
 permissions:
-  contents: write  # Allow the workflow to read and write to the repository
-  issues: write  # Optional: Allow writing to issues
-  pull-requests: write  # Optional: Allow writing to pull requests
-  checks: write  # Optional: Allow writing to checks
-  deployments: write  # Optional: Allow writing to deployments
+  contents: write
+  issues: write
+  pull-requests: write
+  checks: write
+  deployments: write
 
 jobs:
-  update:  # Job 1: Update from upstream
-    name: Update from upstream  # Display name for the job
+  modify_git_revision:  # Job to modify INCLUDE_GIT_REVISION
+    name: Modify Git Revision
     runs-on: ubuntu-latest
-    if: ${{ github.event.inputs.job1_enabled == 'true' }}  # Check if Job 1 is enabled (set this to 'true' to run Job 1, 'false' to skip it)
     steps:
       - name: Checkout Code
         uses: actions/checkout@v6  
         with:
-          ref: master  # Specify the master branch
+          ref: master
+        
+      - name: Set INCLUDE_GIT_REVISION to OFF
+        run: |
+          sed -i 's/set(INCLUDE_GIT_REVISION ON)/set(INCLUDE_GIT_REVISION OFF)/' cmake/Version.cmake
+
+  update:
+    name: Update from upstream
+    runs-on: ubuntu-latest
+    needs: modify_git_revision  # This job will run after modifying the git revision
+    if: ${{ github.event.inputs.job1_enabled == 'true' }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6  
+        with:
+          ref: master
         
       - name: Run Update Action
-        uses: RoundSalmon4/update@master  # Specify the branch as master
+        uses: RoundSalmon4/update@master
 
-  build:  # Job 2: Build the application
-    name: Build  # Display name for the job
+  build:
+    name: Build
     runs-on: ubuntu-latest
-    if: ${{ github.event.inputs.job1_enabled == 'true' }}  # Only run if Job 1 is enabled
-    needs: update  # This job will run after the update job
+    needs: update
+    if: ${{ github.event.inputs.job1_enabled == 'true' }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v6  
         with:
-          ref: master  # Specify the master branch
-        
+          ref: master
+
       - name: Run Build Action
-        uses: RoundSalmon4/build@master  # Specify the branch as master
+        uses: RoundSalmon4/build@master
 
-  codeberg:  # Job 3: Interact with Codeberg
-    name: Sync Codeberg Repo # Display name for the job
+  codeberg:
+    name: Sync Codeberg Repo
     runs-on: ubuntu-latest
-    needs: build  # This job will run after the build job
+    needs: build
     steps:
       - name: Checkout Code
         uses: actions/checkout@v6  
         with:
-          ref: master  # Specify the master branch
+          ref: master
         
       - name: Run Codeberg Action
-        uses: RoundSalmon4/codeberg@master  # Specify the branch as master
+        uses: RoundSalmon4/codeberg@master
 
-  codeberg_release:  # Job 4: Release to Codeberg
-    name: Add Codeberg Release  # Display name for the job
+  codeberg_release:
+    name: Add Codeberg Release
     runs-on: ubuntu-latest
-    needs: codeberg  # This job will run after the codeberg job
+    needs: codeberg
     steps:
       - name: Checkout Code
         uses: actions/checkout@v6  
         with:
-          ref: master  # Specify the master branch
+          ref: master
         
       - name: Run Codeberg Release Action
-        uses: RoundSalmon4/codeberg_release@master  # Specify the branch as master
+        uses: RoundSalmon4/codeberg_release@master
 
-  codeberg_notes:  # Job 5: Manage Codeberg Notes
-    name: Add Codeberg Notes  # Display name for the job
+  codeberg_notes:
+    name: Add Codeberg Notes
     runs-on: ubuntu-latest
-    needs: codeberg_release  # This job will run after the codeberg_release job
+    needs: codeberg_release
     steps:
       - name: Checkout Code
         uses: actions/checkout@v6  
         with:
-          ref: master  # Specify the master branch
+          ref: master
         
       - name: Run Codeberg Notes Action
-        uses: RoundSalmon4/codeberg_notes@master  # Specify the branch as master
+        uses: RoundSalmon4/codeberg_notes@master
+
+  reset_git_revision:  # Final job to reset INCLUDE_GIT_REVISION
+    name: Reset Git Revision
+    runs-on: ubuntu-latest
+    needs: codeberg_notes  # This job runs after codeberg_notes
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6  
+        with:
+          ref: master
+
+      - name: Set INCLUDE_GIT_REVISION to ON
+        run: |
+          sed -i 's/set(INCLUDE_GIT_REVISION OFF)/set(INCLUDE_GIT_REVISION ON)/' cmake/Version.cmake
